@@ -39,7 +39,15 @@
 - **Economic Calendar**: Keep track of High, Medium, and Low-impact macroeconomic events globally.
 - **Dark Mode**: Flawless CSS-variable-based dark/light mode toggle to adapt to your trading environment.
 
+### 🛡️ Secure Admin Portal & Credit Desk
+- **Multi-Factor Admin Auth**: Dedicated `/admin/login` entry point with a 2-step verification flow: Master Password check and 6-digit Email OTP dispatched to `ADMIN_EMAIL` (independent of the user database).
+- **Pending Requests Management**: Centralized desk for approving or rejecting user simulation credit requests.
+- **Audit Logs & Metadata**: Persists `approved_at` and `approved_by` values for historical logging, and supports custom admin resolution notes.
+- **Automatic User Notification**: Sends automated emails to users upon approval or rejection of their credit requests.
+- **Role-Based Access Control**: Strict frontend/backend route guarding prevents standard users from accessing admin workspaces.
+
 ---
+
 
 ## 🛠️ Architecture & Tech Stack
 
