@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python Virtual Environments
+env/
+venv/
+.env/
+.venv/
+env.bak/
+venv.bak/
+
+# Environment Variables
+.env
+.env.local
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+backend/stockvision.db
+
+# Logs
+*.log
+backend/server.log
+backend/uvicorn.err.log
+backend/uvicorn.out.log
+frontend/vite.log
+
+# Build Outputs
+dist/
+build/
+*.egg-info/
+.DS_Store
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
