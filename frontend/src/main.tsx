@@ -1352,7 +1352,11 @@ function useLiveQuotes(symbols: string[]): LiveState {
     const markDelayed = () => setState((current) => ({ ...current, status: "delayed" }));
 
     try {
-      socket = new WebSocket("ws://127.0.0.1:8000/ws/prices");
+      const wsBase = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api")
+        .replace("https://", "wss://")
+        .replace("http://", "ws://")
+        .replace("/api", "");
+      socket = new WebSocket(`${wsBase}/ws/prices`);
       socket.onopen = () => {
         socket?.send(JSON.stringify({ symbols }));
         staleTimer = window.setTimeout(markDelayed, 16000);
