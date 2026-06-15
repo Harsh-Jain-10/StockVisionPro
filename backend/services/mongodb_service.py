@@ -18,10 +18,14 @@ def get_mongo_collection():
             _client.server_info() # Trigger connection check
         except pymongo.errors.ServerSelectionTimeoutError:
             print("[MongoDB Warning] Local MongoDB server is not running or reachable. Sync skipped.")
+            if _client:
+                _client.close()
             _client = None
             return None
         except Exception as e:
             print(f"[MongoDB Error] Connection failed: {e}")
+            if _client:
+                _client.close()
             _client = None
             return None
     return _client[DB_NAME][COLLECTION_NAME]

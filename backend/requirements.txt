@@ -14,3 +14,4 @@ httpx==0.28.1
 vaderSentiment==3.3.2
 pymongo==4.10.1
 psycopg2-binary==2.9.12
+dnspython==2.8.0
