@@ -6,12 +6,15 @@
   [![Vite](https://img.shields.io/badge/Vite-5-purple.svg?style=for-the-badge&logo=vite)](https://vitejs.dev/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
   [![Python](https://img.shields.io/badge/Python-3.10+-yellow.svg?style=for-the-badge&logo=python)](https://www.python.org/)
-  [![Anthropic Claude](https://img.shields.io/badge/AI-Claude_3.5_Sonnet-orange.svg?style=for-the-badge&logo=anthropic)](https://www.anthropic.com/)
+  [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-blueviolet?style=for-the-badge&logo=supabase)](https://supabase.com/)
+  [![MongoDB Atlas](https://img.shields.io/badge/MongoDB-Atlas-brightgreen?style=for-the-badge&logo=mongodb)](https://www.mongodb.com/cloud/atlas)
 </div>
 
 <br />
 
-**StockVision Pro** is a state-of-the-art, full-stack stock analytics platform engineered for modern investors. By seamlessly blending real-time market data with advanced AI insights driven by Anthropic's Claude, it delivers institutional-grade financial analysis directly to your browser. From interactive candlestick charts to fully automated technical analysis, StockVision Pro equips you with the tools to make smarter, data-driven decisions.
+**StockVision Pro** is a state-of-the-art, full-stack stock analytics platform engineered for modern investors. By seamlessly blending real-time market data with advanced AI insights, it delivers institutional-grade financial analysis directly to your browser. From interactive candlestick charts to fully automated technical analysis, StockVision Pro equips you with the tools to make smarter, data-driven decisions.
+
+Now fully upgraded for cloud-ready enterprise deployment, the platform integrates dual-database synchronization (Supabase PostgreSQL + MongoDB Atlas) and configurable environment management.
 
 ---
 
@@ -24,7 +27,7 @@
 - **Comparison Lab**: Normalize and compare multiple tickers on a single scale to analyze relative strength (e.g., AAPL vs MSFT).
 
 ### 🤖 AI-Powered Market Intelligence
-- **AI Analyst Summaries**: Claude-driven narrative summaries breaking down complex technical setups into readable insights.
+- **AI Analyst Summaries**: Driven narrative summaries breaking down complex technical setups into readable insights.
 - **Sentiment Analysis**: Real-time financial news classification with an aggregated positive/negative/neutral sentiment gauge.
 - **AI Screener**: Prompt the AI to find bullish setups across the NSE universe based on live technicals.
 - **AI Chatbot Assistant**: Ask natural language questions about market trends or specific stock fundamentals.
@@ -34,36 +37,40 @@
 - **Strategy Backtester**: Backtest technical strategies (e.g., SMA Crossovers, RSI Oversold/Overbought) with detailed metrics: Total Return, Win Rate, Max Drawdown, and Sharpe Ratio.
 - **Live Watchlist**: Persisted watchlists with real-time 30-second polling and mini sparkline charts.
 
-### ⚡ Real-Time Edge
-- **Browser Push Notifications**: Set rule-based alerts (e.g., Price > X, RSI < 30) and get notified instantly.
+### 🔌 Enterprise Dual-Database Sync
+- **Supabase Shared Pooler (PostgreSQL)**: Connected via SQLAlchemy and `psycopg2-binary` for primary relational data (portfolio items, watchlists, alerts, transactions, OTP codes, and user accounts).
+- **MongoDB Atlas user sync**: Connected via `pymongo` and `dnspython` for active user profile mirroring.
+- **Resource leak prevention**: Fully optimized client connections with safe `MongoClient.close()` exception wrappers to prevent warnings and socket leaks during testing and production load.
+- **SQLite fallback**: Seamlessly reverts to a local SQLite database configuration when running in offline/local-only mode.
+
+### ⚡ Real-Time Edge & OTP Service
+- **Rule-Based Alerts**: Set price crossing thresholds (e.g., Price > X, RSI < 30) and get notified instantly.
+- **Robust OTP Deliveries**: Dispatches 2-Step verification OTP codes via Gmail SMTP or Resend API in production, with a clean stdout console logging fallback in development.
 - **Economic Calendar**: Keep track of High, Medium, and Low-impact macroeconomic events globally.
-- **Dark Mode**: Flawless CSS-variable-based dark/light mode toggle to adapt to your trading environment.
+- **Dark Mode**: Flawless CSS-variable-based theme toggles for night trading sessions.
 
 ### 🛡️ Secure Admin Portal & Credit Desk
 - **Multi-Factor Admin Auth**: Dedicated `/admin/login` entry point with a 2-step verification flow: Master Password check and 6-digit Email OTP dispatched to `ADMIN_EMAIL` (independent of the user database).
 - **Pending Requests Management**: Centralized desk for approving or rejecting user simulation credit requests.
 - **Audit Logs & Metadata**: Persists `approved_at` and `approved_by` values for historical logging, and supports custom admin resolution notes.
-- **Automatic User Notification**: Sends automated emails to users upon approval or rejection of their credit requests.
 - **Role-Based Access Control**: Strict frontend/backend route guarding prevents standard users from accessing admin workspaces.
 
 ---
 
-
 ## 🛠️ Architecture & Tech Stack
-
-StockVision Pro is built for speed and reliability, decoupling the frontend presentation layer from the heavy-lifting backend data processing.
 
 ### **Frontend** (React + Vite)
 - **Framework**: React 18 powered by Vite for lightning-fast HMR and optimized builds.
-- **Styling**: Tailwind CSS combined with custom CSS properties for seamless thematic switching.
-- **Charting**: Recharts for high-performance SVG-based data visualizations.
-- **Icons**: Lucide React for crisp, scalable UI iconography.
+- **Typing safety**: Configured with `vite-env.d.ts` for Vite client-side properties (e.g., `import.meta.env`).
+- **Dynamic Config**: Adapts base API URLs and WS endpoints dynamically from `import.meta.env.VITE_API_URL` to prevent hardcoded client lockups in production.
+- **Styling**: Vanilla CSS for maximized performance, custom design properties, and instant theme switches.
+- **Charting**: Recharts for SVG-based data visualizations.
 
 ### **Backend** (Python + FastAPI)
 - **Framework**: FastAPI for async, high-performance API routing.
-- **Market Data**: `yfinance` for reliable historical and live ticker data fetching.
-- **AI Engine**: Anthropic Claude API (`claude-sonnet-4`) for sentiment analysis and technical summaries.
-- **Database**: SQLite for lightweight, persistent portfolio and settings storage.
+- **CORS Middleware**: Dynamic parsing supporting multi-origin configurations (comma-separated origins from `CORS_ORIGIN` env).
+- **Market Data**: `yfinance` for historical and live ticker data fetching.
+- **Databases**: Supabase PostgreSQL (SQLAlchemy) + MongoDB Atlas (`pymongo`).
 
 ---
 
@@ -96,21 +103,56 @@ venv\Scripts\activate
 # source venv/bin/activate
 
 pip install -r requirements.txt
+```
 
-# Create an .env file and add your Anthropic API Key
-echo "ANTHROPIC_API_KEY=your_key_here" > .env
+Create an `.env` file in the `backend/` directory and configure the environment variables:
+```env
+# Optional keys. The current MVP runs without these.
+NEWSAPI_KEY=your_newsapi_key
+GROQ_API_KEY=your_groq_api_key
+GEMINI_API_KEY=your_gemini_api_key
 
-# Run the API server
+# App config
+CORS_ORIGIN=http://localhost:5173
+DATABASE_URL=postgresql://postgres.rvsqggigzpemerolmtfu:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
+MONGODB_URI=mongodb+srv://harshjainm1003_db_user:[YOUR-PASSWORD]@cluster0.1rulutm.mongodb.net/stockvision?appName=Cluster0
+ML_RETRAIN_INTERVAL_HOURS=24
+PRICE_REFRESH_SECONDS=10
+
+# SMTP Configuration for real OTP email dispatch (Gmail SMTP / Free Resend API)
+ENV=development
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_16_digit_app_password
+SMTP_SENDER=StockVision Pro <your_email@gmail.com>
+ADMIN_EMAIL=your_email@gmail.com
+ADMIN_PASSWORD=admin1234
+JWT_SECRET=SVP_8kP2mQ9zX4Lr7Yh1Nw5Ta6Bc3Df8Gh
+```
+
+Run the API server:
+```bash
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+> [!TIP]
+> A workspace [.vscode/settings.json](file:///.vscode/settings.json) configuration is provided to align your editor with the virtual environment automatically and resolve linter warnings.
 
 #### 2. Configure the Frontend
 Ensure you have Node.js 18+ installed.
 ```bash
 cd frontend
 npm install
+```
 
-# Run the Vite development server
+Create a `.env.local` file in the `frontend/` directory to configure the backend API endpoints:
+```env
+VITE_API_URL=http://127.0.0.1:8000/api
+```
+
+Run the Vite development server:
+```bash
 npm run dev
 ```
 The application will be accessible at `http://localhost:5173`.
@@ -121,19 +163,20 @@ The application will be accessible at `http://localhost:5173`.
 
 ```text
 stock-vision-pro/
+├── .vscode/               # Editor configurations
 ├── backend/               # FastAPI async Python backend
 │   ├── main.py            # API Entry Point
 │   ├── routers/           # Endpoint controllers (auth, data, ai)
-│   ├── services/          # Business logic, backtesting, pattern detection
-│   └── models/            # Pydantic schemas and DB definitions
+│   ├── services/          # Business logic, backtesting, pattern detection, MongoDB sync
+│   └── models/            # Pydantic schemas and DB definitions (SQLAlchemy models)
 ├── frontend/              # Vite + React SPA
 │   ├── src/               
-│   │   ├── components/    # Reusable UI (Charts, Gauges, Cards)
-│   │   ├── pages/         # Top-level views (Dashboard, Lab, Portfolio)
-│   │   └── hooks/         # Custom React hooks for data fetching & state
-│   ├── public/            # Static assets
-│   └── vite.config.ts     # Vite configurations
-├── AGENT_BRIEF.md         # Agent constraints and build directives
+│   │   ├── api/           # API Client helpers
+│   │   ├── components/    # Reusable UI components
+│   │   ├── styles/        # Global style declarations
+│   │   └── main.tsx       # Core React bootstrapping & websocket feeds
+│   ├── index.html         # Frontend frame
+│   └── vite.config.ts     # Vite configuration
 ├── docker-compose.yml     # Orchestration
 └── README.md              # Project documentation
 ```
