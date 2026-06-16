@@ -63,7 +63,16 @@ function HowItWorksBanner() {
 }
 
 /* ── Pending State ───────────────────────────────────── */
-function PendingState({ pendingCount }: { pendingCount: number }) {
+function PendingState({ pendingCount, earliestDate }: { pendingCount: number; earliestDate?: string | null }) {
+  const dateStr = earliestDate
+    ? new Date(earliestDate).toLocaleDateString(undefined, {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "Pending";
+
   return (
     <div className="acc-pending-state glass-card">
       <div className="acc-pending-icon">
@@ -71,11 +80,30 @@ function PendingState({ pendingCount }: { pendingCount: number }) {
       </div>
       <h3 className="acc-pending-title">Forecasts Waiting to Mature</h3>
       <p className="acc-pending-body">
-        You have <strong style={{ color: "var(--primary)" }}>{pendingCount} forecast{pendingCount !== 1 ? "s" : ""}</strong>{" "}
-        saved and waiting. Accuracy data will appear automatically once those future dates arrive
-        and real market prices become available.
+        Forecasts are currently maturing. Accuracy metrics will automatically populate as forecast dates are reached.
       </p>
-      <div className="acc-pending-steps">
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", maxWidth: "420px", marginTop: "10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+          <span style={{ color: "var(--text-secondary)" }}>Forecasts Waiting Evaluation:</span>
+          <strong style={{ color: "var(--primary)" }}>{pendingCount}</strong>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+          <span style={{ color: "var(--text-secondary)" }}>Earliest Evaluation Date:</span>
+          <strong style={{ color: "var(--accent-amber)" }}>{dateStr}</strong>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--text-muted)" }}>
+            <span>Forecast Maturity Progress</span>
+            <span>Active Syncing</span>
+          </div>
+          <div style={{ height: "6px", width: "100%", background: "var(--border)", borderRadius: "999px", overflow: "hidden", position: "relative" }}>
+            <div style={{ height: "100%", width: "45%", background: "linear-gradient(90deg, var(--primary), var(--accent-teal))", borderRadius: "inherit" }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="acc-pending-steps" style={{ marginTop: "20px" }}>
         <div className="acc-step">
           <div className="acc-step-num">1</div>
           <span>Run a forecast in Forecast Studio</span>
@@ -293,7 +321,7 @@ export default function ForecastAccuracy() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.12 }}
             >
-              <PendingState pendingCount={data.pending_count} />
+              <PendingState pendingCount={data.pending_count} earliestDate={data.earliest_pending_date} />
             </motion.div>
           )}
 
@@ -308,7 +336,7 @@ export default function ForecastAccuracy() {
           )}
 
           {/* ── Prediction vs Actual Chart ───────────── */}
-          {hasEvaluated && (
+          {hasEvaluated ? (
             <motion.div
               className="glass-card acc-chart-card"
               initial={{ opacity: 0, y: 14 }}
@@ -320,7 +348,7 @@ export default function ForecastAccuracy() {
                 <h3>Predicted vs. Actual Closing Prices</h3>
                 <span className="acc-section-sub">{chartData.length} data points</span>
               </div>
-              <div style={{ width: "100%", height: "280px" }}>
+              <div className="accuracy-chart-container" style={{ width: "100%", height: "280px" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData} margin={{ right: 10, left: 0, top: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,140,220,0.08)" />
@@ -365,6 +393,23 @@ export default function ForecastAccuracy() {
                     />
                   </ComposedChart>
                 </ResponsiveContainer>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              className="glass-card acc-chart-card placeholder-chart-card"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.14 }}
+            >
+              <div className="acc-section-head">
+                <Activity size={17} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
+                <h3 style={{ color: "var(--text-muted)" }}>Predicted vs. Actual Closing Prices</h3>
+              </div>
+              <div className="acc-chart-placeholder-container">
+                <div className="acc-chart-placeholder-message">
+                  Chart visualization will appear here once forecasts mature and actual closing prices are evaluated.
+                </div>
               </div>
             </motion.div>
           )}

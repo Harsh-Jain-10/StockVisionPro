@@ -314,10 +314,16 @@ def get_accuracy_tracker(db: Session = Depends(get_db)):
         # Return null accuracy when there is nothing evaluated yet (avoids misleading "100%")
         avg_accuracy = round(100.0 - (total_err_pct / count), 2) if count > 0 else None
         
+        q_earliest_pending = select(SavedForecast.forecast_date).where(
+            SavedForecast.actual_price == None
+        ).order_by(SavedForecast.forecast_date.asc()).limit(1)
+        earliest_pending = db.scalar(q_earliest_pending)
+        
         return {
             "average_accuracy": avg_accuracy,
             "total_evaluated": count,
             "pending_count": pending_count,
+            "earliest_pending_date": earliest_pending,
             "history": items
         }
     except Exception as exc:

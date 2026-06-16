@@ -263,10 +263,10 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
   const activeModelInfo = MODEL_INFOS[model];
 
   return (
-    <div className="page-grid">
+    <div className="page-grid fs-page-grid">
       {/* 1. Header and Search */}
       <motion.section
-        className="glass-card hero-card"
+        className="glass-card hero-card fs-header-section"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
       >
@@ -310,7 +310,7 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
 
       {/* 2. Control Desk */}
       <motion.section
-        className="glass-card"
+        className="glass-card fs-controls-section"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
@@ -384,7 +384,7 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
 
       {/* 3. Main Chart Card */}
       <motion.section
-        className="glass-card wide chart-card"
+        className="glass-card wide chart-card fs-chart-section"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
@@ -512,7 +512,7 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
 
       {/* 4. AI Insights & Sentiment Correlation Card (wide) */}
       <motion.section
-        className="glass-card wide"
+        className="glass-card wide fs-ai-insights-section"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
@@ -642,7 +642,7 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
 
       {/* 5. Multi-Factor Analyst Desk (regular) */}
       <motion.section
-        className="glass-card"
+        className="glass-card fs-stability-section"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -765,7 +765,7 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
 
       {/* 6. Backtested Evaluation Metrics (regular) */}
       <motion.section
-        className="glass-card"
+        className="glass-card fs-metrics-section"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
@@ -836,7 +836,7 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
 
       {/* 7. Forecast Explanation Engine (full-wide) */}
       <motion.section
-        className="glass-card full-wide"
+        className="glass-card full-wide fs-explanations-section"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}

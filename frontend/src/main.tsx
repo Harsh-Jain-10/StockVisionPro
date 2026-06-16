@@ -50,6 +50,9 @@ import ForecastStudio from "./components/ForecastStudio";
 import TechnicalSignals from "./components/TechnicalSignals";
 import ForecastOpportunities from "./components/ForecastOpportunities";
 import ForecastAccuracy from "./components/ForecastAccuracy";
+import MobileHeader from "./components/MobileHeader";
+import MobileBottomNav from "./components/MobileBottomNav";
+import MobileSearchModal from "./components/MobileSearchModal";
 import "./styles/globals.css";
 
 // Apply saved theme before first render
@@ -87,7 +90,19 @@ function PriceBadge({ value }: { value?: number | null }) {
 
 
 
-function AvatarDropdown({ email, role, onLogout }: { email: string; role: string; onLogout: () => void }) {
+function AvatarDropdown({
+  email,
+  role,
+  onLogout,
+  setView,
+  isCollapsed,
+}: {
+  email: string;
+  role: string;
+  onLogout: () => void;
+  setView?: (v: View) => void;
+  isCollapsed?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -108,14 +123,15 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
   const initials = email ? email.split("@")[0].substring(0, 2).toUpperCase() : "US";
 
   return (
-    <div ref={ref} style={{ position: "relative", width: "100%" }}>
+    <div ref={ref} style={{ position: "relative", width: "100%", display: "grid", placeItems: "center" }}>
       {/* Dropdown Menu */}
       {open && (
         <div style={{
           position: "absolute",
           bottom: "calc(100% + 8px)",
-          left: 0,
-          right: 0,
+          left: isCollapsed ? "0" : "0",
+          right: isCollapsed ? "auto" : "0",
+          width: isCollapsed ? "220px" : "100%",
           background: "var(--bg-surface-hover)",
           backdropFilter: "blur(24px) saturate(180%)",
           border: "1px solid var(--border-hover)",
@@ -136,6 +152,30 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
             </div>
           </div>
 
+          {setView && (
+            <button
+              onClick={() => {
+                setView("settings");
+                setOpen(false);
+              }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                borderRadius: "10px",
+                border: "1px solid var(--border)",
+                background: "var(--bg-surface)",
+                color: "var(--text-primary)",
+                fontSize: "13px",
+                cursor: "pointer",
+              }}
+            >
+              <span>⚙️ Settings</span>
+            </button>
+          )}
+
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
             <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
               Logged Devices
@@ -151,6 +191,25 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
               ))}
             </div>
           </div>
+          <button
+            onClick={() => {
+              onLogout();
+              setOpen(false);
+            }}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              borderRadius: "10px",
+              border: "1px solid rgba(255, 107, 138, 0.3)",
+              background: "rgba(255, 107, 138, 0.1)",
+              color: "var(--accent-rose)",
+              fontSize: "13px",
+              cursor: "pointer",
+              marginTop: "4px",
+            }}
+          >
+            Log Out
+          </button>
         </div>
       )}
 
@@ -158,12 +217,14 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
       <button
         onClick={() => setOpen(!open)}
         style={{
-          width: "100%",
+          width: isCollapsed ? "40px" : "100%",
+          height: isCollapsed ? "40px" : "auto",
           display: "flex",
           alignItems: "center",
-          gap: "12px",
-          padding: "10px 12px",
-          borderRadius: "14px",
+          justifyContent: isCollapsed ? "center" : "flex-start",
+          gap: isCollapsed ? "0" : "12px",
+          padding: isCollapsed ? "0" : "10px 12px",
+          borderRadius: isCollapsed ? "50%" : "14px",
           border: "1px solid var(--border)",
           background: "var(--bg-surface)",
           color: "var(--text-primary)",
@@ -188,17 +249,21 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
         }}>
           {initials}
         </div>
-        <div style={{ flexGrow: 1, minWidth: 0 }}>
-          <div style={{ fontSize: "13px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {email.split("@")[0]}
-          </div>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "capitalize" }}>
-            Local Workspace
-          </div>
-        </div>
-        <div style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", color: "var(--text-muted)", fontSize: "10px" }}>
-          ▼
-        </div>
+        {!isCollapsed && (
+          <>
+            <div style={{ flexGrow: 1, minWidth: 0 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {email.split("@")[0]}
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "capitalize" }}>
+                Local Workspace
+              </div>
+            </div>
+            <div style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", color: "var(--text-muted)", fontSize: "10px" }}>
+              ▼
+            </div>
+          </>
+        )}
       </button>
     </div>
   );
@@ -206,6 +271,16 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
 
 
 
+
+function useWindowWidth() {
+  const [width, setWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1024));
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  return width;
+}
 
 function AppShell() {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
@@ -220,6 +295,20 @@ function AppShell() {
   const [userId, setUserId] = useState("local_user");
   const [userEmail, setUserEmail] = useState("local_user@stockvision.pro");
   const [userRole, setUserRole] = useState("user");
+  
+  const [isDark, setIsDark] = useState(() => localStorage.getItem("sv_theme") === "dark");
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+    localStorage.setItem("sv_theme", next ? "dark" : "light");
+  };
+
+  const width = useWindowWidth();
+  const isMobile = width < 768;
+  const isTablet = width >= 768 && width < 1024;
 
   const qc = useQueryClient();
 
@@ -241,6 +330,27 @@ function AppShell() {
 
   return (
     <div className="app">
+      {isMobile && (
+        <MobileHeader
+          currentView={view}
+          setView={setView}
+          onSearchClick={() => setSearchOpen(true)}
+          isDark={isDark}
+          onThemeToggle={toggleTheme}
+          userEmail={userEmail}
+          userRole={userRole}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {isMobile && (
+        <MobileBottomNav currentView={view} setView={setView} />
+      )}
+
+      {isMobile && searchOpen && (
+        <MobileSearchModal onClose={() => setSearchOpen(false)} onSelectSymbol={(sym) => { setSymbol(sym); setView("stock"); }} />
+      )}
+
       <aside className="sidebar">
         <div className="brand"><span>SV</span><div><strong>StockVision</strong><small>Real markets. Real edge.</small></div></div>
         <NavButton active={view === "dashboard"} onClick={() => setView("dashboard")} icon={<Gauge />} label="Dashboard" />
@@ -254,11 +364,11 @@ function AppShell() {
         
         <div style={{ flexGrow: 1 }} />
         <div style={{ padding: "16px", borderTop: "1px solid var(--border)" }}>
-          <AvatarDropdown email={userEmail} role={userRole} onLogout={handleLogout} />
+          <AvatarDropdown email={userEmail} role={userRole} onLogout={handleLogout} setView={setView} isCollapsed={isTablet} />
         </div>
       </aside>
       <main>
-        <Topbar symbol={symbol} setSymbol={setSymbol} setView={setView} live={live} />
+        <Topbar symbol={symbol} setSymbol={setSymbol} setView={setView} live={live} isDark={isDark} onThemeToggle={toggleTheme} />
         <TickerTape quotes={ticker} />
         {view === "dashboard" && <Dashboard setSymbol={setSymbol} setView={setView} />}
         {view === "stock" && <StockLab symbol={symbol} setSymbol={setSymbol} />}
@@ -268,7 +378,7 @@ function AppShell() {
         {view === "accuracy" && <ForecastAccuracy />}
         {view === "sentiment" && <NewsSentiment symbol={symbol} />}
         {view === "alerts" && <Alerts symbol={symbol} />}
-        {view === "settings" && <SettingsView />}
+        {view === "settings" && <SettingsView isDark={isDark} onThemeToggle={toggleTheme} />}
 
         {/* Backwards compatibility views */}
         {view === "compare" && <Compare />}
@@ -345,9 +455,22 @@ function NavButton({ active, onClick, icon, label }: { active: boolean; onClick:
   return <button className={`nav-button ${active ? "active" : ""}`} onClick={onClick}>{icon}<span>{label}</span></button>;
 }
 
-function Topbar({ symbol, setSymbol, setView, live }: { symbol: string; setSymbol: (s: string) => void; setView: (v: View) => void; live: LiveState }) {
+function Topbar({
+  symbol,
+  setSymbol,
+  setView,
+  live,
+  isDark,
+  onThemeToggle,
+}: {
+  symbol: string;
+  setSymbol: (s: string) => void;
+  setView: (v: View) => void;
+  live: LiveState;
+  isDark?: boolean;
+  onThemeToggle?: () => void;
+}) {
   const [query, setQuery] = useState("");
-  const [isDark, setIsDark] = useState(() => localStorage.getItem("sv_theme") === "dark");
   const search = useQuery({ queryKey: ["search", query], queryFn: () => searchStocks(query), enabled: query.length > 1 });
   const now = useClock();
   const lastDate = live.lastUpdate ? new Date(live.lastUpdate) : undefined;
@@ -357,11 +480,18 @@ function Topbar({ symbol, setSymbol, setView, live }: { symbol: string; setSymbo
   const clock = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const detail = lagSeconds === undefined ? "connecting..." : lagSeconds <= 15 ? "Prices live" : `lag ${lagSeconds}s`;
 
-  function toggleTheme() {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
-    localStorage.setItem("sv_theme", next ? "dark" : "light");
+  const [localIsDark, setLocalIsDark] = useState(() => localStorage.getItem("sv_theme") === "dark");
+  const activeIsDark = isDark !== undefined ? isDark : localIsDark;
+
+  function handleThemeToggle() {
+    if (onThemeToggle) {
+      onThemeToggle();
+    } else {
+      const next = !localIsDark;
+      setLocalIsDark(next);
+      document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+      localStorage.setItem("sv_theme", next ? "dark" : "light");
+    }
   }
 
   return (
@@ -383,8 +513,8 @@ function Topbar({ symbol, setSymbol, setView, live }: { symbol: string; setSymbo
           </div>
         )}
       </div>
-      <button className="theme-btn" onClick={toggleTheme} title={isDark ? "Switch to light mode" : "Switch to dark mode"}>
-        {isDark ? <Sun size={18} /> : <Moon size={18} />}
+      <button className="theme-btn" onClick={handleThemeToggle} title={activeIsDark ? "Switch to light mode" : "Switch to dark mode"}>
+        {activeIsDark ? <Sun size={18} /> : <Moon size={18} />}
       </button>
       <div className={`live-pill ${effectiveStatus}`} title={`${detail}`}>
         <Wifi size={15} /> <span>{liveText}</span><small>{clock} · {detail}</small>
@@ -1186,7 +1316,7 @@ function InteractiveChart({ symbol }: { symbol: string }) {
         horzLines: { color: 'rgba(120,140,220,.08)' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 330,
+      height: window.innerWidth < 768 ? 200 : 330,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
@@ -1321,14 +1451,19 @@ function NewsSentiment({ symbol }: { symbol: string }) {
   );
 }
 
-function SettingsView() {
-  const [isDark, setIsDark] = useState(() => localStorage.getItem("sv_theme") === "dark");
+function SettingsView({ isDark, onThemeToggle }: { isDark?: boolean; onThemeToggle?: () => void }) {
+  const [localIsDark, setLocalIsDark] = useState(() => localStorage.getItem("sv_theme") === "dark");
+  const activeIsDark = isDark !== undefined ? isDark : localIsDark;
 
-  function toggleTheme() {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
-    localStorage.setItem("sv_theme", next ? "dark" : "light");
+  function handleThemeToggle() {
+    if (onThemeToggle) {
+      onThemeToggle();
+    } else {
+      const next = !localIsDark;
+      setLocalIsDark(next);
+      document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+      localStorage.setItem("sv_theme", next ? "dark" : "light");
+    }
   }
 
   return (
@@ -1353,8 +1488,8 @@ function SettingsView() {
                 Toggle between light and dark glassmorphic color themes.
               </span>
             </div>
-            <button className="theme-btn" onClick={toggleTheme} title={isDark ? "Switch to light mode" : "Switch to dark mode"}>
-              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            <button className="theme-btn" onClick={handleThemeToggle} title={activeIsDark ? "Switch to light mode" : "Switch to dark mode"}>
+              {activeIsDark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
 
