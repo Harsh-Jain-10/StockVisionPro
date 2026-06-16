@@ -39,6 +39,7 @@ export default function MobileBottomNav({ currentView, setView }: MobileBottomNa
           return (
             <button
               key={tab.id}
+              id={`mobile-tab-${tab.id}`}
               className={`mobile-nav-tab ${isActive ? "active" : ""}`}
               onClick={() => setView(tab.id)}
             >
