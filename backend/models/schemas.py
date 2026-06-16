@@ -234,31 +234,7 @@ class BacktestResponse(BaseModel):
     trades: list[BacktestTrade]
 
 
-class AuthSendOtpRequest(BaseModel):
-    email: str
-    password: str | None = None
-    action: Literal["signin", "signup", "reset_password"] = "signin"
-    role: Literal["user", "admin"] = "user"
 
-
-class AuthVerifyOtpRequest(BaseModel):
-    email: str
-    code: str
-    action: Literal["signin", "signup", "reset_password"] = "signin"
-
-
-class AuthSigninRequest(BaseModel):
-    email: str
-    password: str
-
-
-class AuthVerifyOtpResponse(BaseModel):
-    success: bool
-    user_id: str
-    email: str
-    message: str
-    token: str | None = None
-    role: str | None = "user"
 
 
 class CreditRequestCreate(BaseModel):
@@ -293,6 +269,3 @@ class AdminSigninRequest(BaseModel):
 class AdminVerifyOtpRequest(BaseModel):
     email: str
     code: str
-
-
-

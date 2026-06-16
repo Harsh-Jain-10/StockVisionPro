@@ -9,8 +9,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import select
-from models.database import SessionLocal, init_db, Alert, User, utc_now
-from routers import ai, alerts, compare, market, stock, watchlist, portfolio, backtest, auth, admin
+from models.database import SessionLocal, init_db, Alert, utc_now
+from routers import ai, alerts, compare, market, stock, watchlist, portfolio, backtest, admin
 from services.data_service import get_quote, get_history_df
 
 load_dotenv()
@@ -101,18 +101,18 @@ async def check_alerts_loop() -> None:
                                 alert.triggered_at = datetime.now(timezone.utc)
                                 db.commit()
                                 
-                                user_obj = db.scalar(select(User).where(User.id == alert.user_id))
-                                if user_obj:
+                                alert_email = os.getenv("ADMIN_EMAIL") or os.getenv("SMTP_USER")
+                                if alert_email:
                                     from services.mail_service import send_alert_trigger_email
                                     send_alert_trigger_email(
-                                        email_to=user_obj.email,
+                                        email_to=alert_email,
                                         symbol=symbol,
                                         alert_type=alert.alert_type,
                                         threshold=alert.value,
                                         current_price=current_price,
                                         message=trigger_reason
                                     )
-                                    print(f"[Alerts Loop] Triggered alert {alert.id} for {user_obj.email} on {symbol}")
+                                    print(f"[Alerts Loop] Triggered alert {alert.id} for {alert_email} on {symbol}")
                     except Exception as e:
                         print(f"[Alerts Loop Error] Failed to process alerts for {symbol}: {e}")
         except Exception as e:
@@ -146,7 +146,6 @@ app.include_router(compare.router)
 app.include_router(ai.router)
 app.include_router(portfolio.router)
 app.include_router(backtest.router)
-app.include_router(auth.router)
 app.include_router(admin.router)
 
 

@@ -53,41 +53,11 @@ def send_html_email(to_email: str, subject: str, html_content: str) -> bool:
         print(f"[SMTP Error] Failed to send email to {to_email}: {e}")
         return False
 
-def send_otp_email_service(email_to: str, code: str, action: str) -> bool:
-    if action == "signin":
-        action_text = "sign in to"
-    elif action == "reset_password":
-        action_text = "reset the password for"
-    else:
-        action_text = "create"
-    html = f"""
-    <html>
-    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0d0d1a; color: #e0e0ff; padding: 40px; margin: 0;">
-        <div style="max-width: 500px; margin: 0 auto; background: #1a1a2e; border: 1px solid rgba(80,80,180,0.25); border-radius: 20px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.4);">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h2 style="color: #4f6ef7; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 0.5px;">StockVision Pro</h2>
-                <p style="color: #9090bb; font-size: 14px; margin: 5px 0 0 0;">AI-powered Analytics Desk</p>
-            </div>
-            <div style="border-top: 1px solid rgba(80,80,180,0.15); padding-top: 30px;">
-                <p style="font-size: 16px; line-height: 1.6; color: #9090bb; margin: 0 0 20px 0;">
-                    You requested a verification code to {action_text} your StockVision Pro account.
-                </p>
-                <div style="text-align: center; margin: 30px 0; padding: 20px; background: rgba(20,20,40,0.6); border-radius: 12px; border: 1px solid rgba(120,120,220,0.18);">
-                    <span style="font-size: 36px; font-weight: 800; letter-spacing: 6px; color: #e0e0ff; font-family: 'Courier New', Courier, monospace;">{code}</span>
-                </div>
-                <p style="font-size: 13px; color: #5a5a8a; line-height: 1.5; margin: 20px 0 0 0;">
-                    This code is valid for <strong>5 minutes</strong>. For security, do not share this code with anyone. 
-                    If you did not request this, you can safely ignore this email.
-                </p>
-            </div>
-            <div style="margin-top: 40px; border-top: 1px solid rgba(80,80,180,0.15); padding-top: 20px; text-align: center; font-size: 11px; color: #5a5a8a;">
-                &copy; {datetime.now().year} StockVision Pro. All rights reserved.
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return send_html_email(email_to, f"StockVision Pro OTP - {code}", html)
+
+def send_otp_email_service(email: str, code: str, action: str) -> bool:
+    print(f"[STUB] send_otp_email_service to {email} with code {code} for action {action}")
+    return True
+
 
 def send_alert_trigger_email(email_to: str, symbol: str, alert_type: str, threshold: float, current_price: float, message: str) -> bool:
     subject = f"Stock Alert Triggered – {symbol}"

@@ -64,34 +64,17 @@ class CacheEntry(Base):
 
 class User(Base):
     __tablename__ = "users"
-
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    role: Mapped[str] = mapped_column(String(32), default="user", server_default="user")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    role: Mapped[str] = mapped_column(String(32), default="user")
 
 
 class OTPCode(Base):
     __tablename__ = "otp_codes"
-
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     email: Mapped[str] = mapped_column(String(255), index=True)
     code: Mapped[str] = mapped_column(String(6))
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    attempts: Mapped[int] = mapped_column(Integer, default=0)
-    pending_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    pending_role: Mapped[str | None] = mapped_column(String(32), default="user")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-
-
-class OTPRequestLog(Base):
-    __tablename__ = "otp_request_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    email: Mapped[str] = mapped_column(String(255), index=True)
-    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 class CreditRequest(Base):
@@ -140,65 +123,7 @@ def init_db() -> None:
     
     # Self-healing SQLite migrations to add new columns if they don't exist
     with engine.begin() as conn:
-        # Check users table for hashed_password
-        try:
-            conn.execute(text("SELECT hashed_password FROM users LIMIT 1"))
-        except Exception:
-            try:
-                conn.execute(text("ALTER TABLE users ADD COLUMN hashed_password VARCHAR(255) NULL"))
-                print("[Migration] Added hashed_password column to users table.")
-            except Exception as e:
-                print(f"[Migration Warning] Could not alter users: {e}")
 
-        # Check users table for updated_at
-        try:
-            conn.execute(text("SELECT updated_at FROM users LIMIT 1"))
-        except Exception:
-            try:
-                conn.execute(text("ALTER TABLE users ADD COLUMN updated_at DATETIME NULL"))
-                print("[Migration] Added updated_at column to users table.")
-            except Exception as e:
-                print(f"[Migration Warning] Could not alter users updated_at: {e}")
-
-        # Check users table for role
-        try:
-            conn.execute(text("SELECT role FROM users LIMIT 1"))
-        except Exception:
-            try:
-                conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(32) DEFAULT 'user'"))
-                print("[Migration] Added role column to users table.")
-            except Exception as e:
-                print(f"[Migration Warning] Could not alter users role: {e}")
-                
-        # Check otp_codes table for attempts
-        try:
-            conn.execute(text("SELECT attempts FROM otp_codes LIMIT 1"))
-        except Exception:
-            try:
-                conn.execute(text("ALTER TABLE otp_codes ADD COLUMN attempts INTEGER DEFAULT 0"))
-                print("[Migration] Added attempts column to otp_codes table.")
-            except Exception as e:
-                print(f"[Migration Warning] Could not alter otp_codes: {e}")
-
-        # Check otp_codes table for pending_password
-        try:
-            conn.execute(text("SELECT pending_password FROM otp_codes LIMIT 1"))
-        except Exception:
-            try:
-                conn.execute(text("ALTER TABLE otp_codes ADD COLUMN pending_password VARCHAR(255) NULL"))
-                print("[Migration] Added pending_password column to otp_codes table.")
-            except Exception as e:
-                print(f"[Migration Warning] Could not alter otp_codes pending_password: {e}")
-
-        # Check otp_codes table for pending_role
-        try:
-            conn.execute(text("SELECT pending_role FROM otp_codes LIMIT 1"))
-        except Exception:
-            try:
-                conn.execute(text("ALTER TABLE otp_codes ADD COLUMN pending_role VARCHAR(32) DEFAULT 'user'"))
-                print("[Migration] Added pending_role column to otp_codes table.")
-            except Exception as e:
-                print(f"[Migration Warning] Could not alter otp_codes pending_role: {e}")
 
         # Check credit_requests table for admin_note
         try:
