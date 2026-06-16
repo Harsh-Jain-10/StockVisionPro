@@ -23,6 +23,10 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import type {
+  ValueType,
+  NameType,
+} from "recharts/types/component/DefaultTooltipContent";
 import { getForecastAccuracy } from "../api/client";
 
 /* ── helpers ─────────────────────────────────────────── */
@@ -338,7 +342,7 @@ export default function ForecastAccuracy() {
                         color: "var(--text-primary)",
                         fontSize: "12px",
                       }}
-                      formatter={(val: any, name: string) => [`$${Number(val).toFixed(2)}`, name]}
+                      formatter={(value: ValueType | undefined, name: NameType | undefined) => [`$${Number(value).toFixed(2)}`, String(name ?? "")]}
                       labelFormatter={(label, payload) =>
                         payload?.[0]?.payload?.symbol ? `${payload[0].payload.symbol} · ${label}` : label
                       }
