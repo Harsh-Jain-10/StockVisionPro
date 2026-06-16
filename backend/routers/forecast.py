@@ -280,6 +280,12 @@ def get_accuracy_tracker(db: Session = Depends(get_db)):
         ).order_by(SavedForecast.forecast_date.desc()).limit(100)
         resolved = db.scalars(q_resolved).all()
         
+        # Count forecasts saved but not yet elapsed (future dates waiting for actuals)
+        q_pending_count = select(SavedForecast).where(
+            SavedForecast.actual_price == None
+        )
+        pending_count = len(db.scalars(q_pending_count).all())
+        
         items = []
         total_err_pct = 0.0
         count = 0
@@ -304,12 +310,14 @@ def get_accuracy_tracker(db: Session = Depends(get_db)):
                 "actual": round(actual, 2),
                 "accuracy": round(accuracy_pct, 2)
             })
-            
-        avg_accuracy = round(100.0 - (total_err_pct / count), 2) if count > 0 else 100.0
+        
+        # Return null accuracy when there is nothing evaluated yet (avoids misleading "100%")
+        avg_accuracy = round(100.0 - (total_err_pct / count), 2) if count > 0 else None
         
         return {
             "average_accuracy": avg_accuracy,
             "total_evaluated": count,
+            "pending_count": pending_count,
             "history": items
         }
     except Exception as exc:
