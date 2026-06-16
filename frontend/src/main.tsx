@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Analytics } from "@vercel/analytics/react";
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Activity, AlertCircle, Bell, Brain, Briefcase, CandlestickChart, Check, CheckCircle, Copy, ExternalLink, Eye, EyeOff, Gauge, History, LineChart as LineChartIcon, ListPlus, MessageCircle, Moon, Plus, Radar, Search, Send, Star, Sun, Table2, Trash2, Wifi, X, Newspaper, Flame, Settings as SettingsIcon } from "lucide-react";
@@ -1396,6 +1397,7 @@ createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <AppShell />
+      <Analytics />
     </QueryClientProvider>
   </React.StrictMode>,
 );

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.12",
+    "@vercel/analytics": "^2.0.1",
     "@vitejs/plugin-react": "^5.1.1",
     "axios": "^1.13.2",
     "framer-motion": "^12.23.26",
