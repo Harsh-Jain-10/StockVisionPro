@@ -40,3 +40,8 @@ build/
 .idea/
 *.swp
 *.swo
+
+# Agent files
+.agents/
+.agents
+

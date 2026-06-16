@@ -133,3 +133,11 @@ export async function runBacktest(symbol: string, strategy: string, params: Reco
   return (await api.post("/backtest/run", { symbol, strategy, params, period: "2y" })).data;
 }
 
+export async function runForecast(symbol: string, model: string, horizon: number) {
+  return (await api.post("/forecast/run", { symbol, model, horizon })).data;
+}
+
+export async function compareForecasts(symbol: string, model: string) {
+  return (await api.get("/forecast/compare", { params: { symbol, model } })).data;
+}
+

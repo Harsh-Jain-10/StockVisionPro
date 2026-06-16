@@ -45,6 +45,7 @@ import {
   type Quote,
 } from "./api/client";
 import { createChart, ColorType } from "lightweight-charts";
+import ForecastStudio from "./components/ForecastStudio";
 import "./styles/globals.css";
 
 // Apply saved theme before first render
@@ -53,7 +54,7 @@ import "./styles/globals.css";
   document.documentElement.setAttribute("data-theme", saved);
 })();
 
-type View = "dashboard" | "stock" | "compare" | "screener" | "watchlist" | "alerts" | "calendar";
+type View = "dashboard" | "stock" | "compare" | "screener" | "watchlist" | "alerts" | "calendar" | "forecast";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
@@ -240,6 +241,7 @@ function AppShell() {
         <div className="brand"><span>SV</span><div><strong>StockVision</strong><small>Real markets. Real edge.</small></div></div>
         <NavButton active={view === "dashboard"} onClick={() => setView("dashboard")} icon={<Gauge />} label="Dashboard" />
         <NavButton active={view === "stock"} onClick={() => setView("stock")} icon={<CandlestickChart />} label="Stock Lab" />
+        <NavButton active={view === "forecast"} onClick={() => setView("forecast")} icon={<Brain />} label="Forecast Studio" />
         <NavButton active={view === "compare"} onClick={() => setView("compare")} icon={<Radar />} label="Compare" />
         <NavButton active={view === "screener"} onClick={() => setView("screener")} icon={<Table2 />} label="Screener" />
         <NavButton active={view === "watchlist"} onClick={() => setView("watchlist")} icon={<Star />} label="Watchlist" />
@@ -257,6 +259,7 @@ function AppShell() {
         <TickerTape quotes={ticker} />
         {view === "dashboard" && <Dashboard setSymbol={setSymbol} setView={setView} />}
         {view === "stock" && <StockLab symbol={symbol} setSymbol={setSymbol} />}
+        {view === "forecast" && <ForecastStudio symbol={symbol} setSymbol={setSymbol} />}
 
         {view === "compare" && <Compare />}
         {view === "screener" && <Screener setSymbol={setSymbol} setView={setView} />}
