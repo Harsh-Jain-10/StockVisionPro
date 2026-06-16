@@ -71,12 +71,28 @@ class SavedForecast(Base):
     forecast_date: Mapped[str] = mapped_column(String(32), index=True)
     predicted_price: Mapped[float] = mapped_column(Float)
     actual_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
 def init_db() -> None:
+    from sqlalchemy import text, inspect
     Base.metadata.create_all(bind=engine)
-
+    
+    # Dynamic schema self-healing for last_checked_at column
+    inspector = inspect(engine)
+    try:
+        columns = [col["name"] for col in inspector.get_columns("saved_forecasts")]
+        if "last_checked_at" not in columns:
+            print("[Database Init] Column last_checked_at missing from saved_forecasts. Altering table...")
+            with engine.begin() as conn:
+                if DATABASE_URL.startswith("sqlite"):
+                    conn.execute(text("ALTER TABLE saved_forecasts ADD COLUMN last_checked_at TIMESTAMP"))
+                else:
+                    conn.execute(text("ALTER TABLE saved_forecasts ADD COLUMN last_checked_at TIMESTAMP WITH TIME ZONE"))
+            print("[Database Init] Alter table completed.")
+    except Exception as e:
+        print(f"[Database Init] Failed to run schema check/alteration: {e}")
 
 
 def get_db() -> Generator[Session, None, None]:

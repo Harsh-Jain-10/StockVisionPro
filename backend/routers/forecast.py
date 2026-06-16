@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -14,6 +14,78 @@ class ForecastRunRequest(BaseModel):
     symbol: str
     model: str
     horizon: int = 30
+
+def update_opportunities_in_background():
+    from models.database import SessionLocal, CacheEntry
+    from services.data_service import get_history_df
+    from services.forecasting_service import train_and_forecast
+    import json
+    from datetime import datetime, timezone, timedelta
+    
+    db = SessionLocal()
+    try:
+        cache_key = "forecast_opportunities"
+        
+        universe = [
+            "AAPL", "MSFT", "NVDA", "TSLA", "GOOGL", "AMZN", "META", "NFLX", "AMD", "QCOM", 
+            "AVGO", "JPM", "BAC", "V", "MA", "WMT", "MCD", "KO", "PEP", "NKE",
+            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", 
+            "WIPRO.NS", "HINDUNILVR.NS", "BAJFINANCE.NS", "MARUTI.NS", "TITAN.NS", "LT.NS", 
+            "SUNPHARMA.NS", "ULTRACEMCO.NS", "ASIANPAINT.NS", "TATAMOTORS.NS"
+        ]
+        
+        bullish_opts = []
+        bearish_opts = []
+        
+        for sym in universe:
+            try:
+                df = get_history_df(sym, "1y", db)
+                res = train_and_forecast(df, "seasonal_trend", 30, db)
+                
+                current_price = res["historical"][-1]["close"]
+                target_price = res["forecast"][-1]["base"]
+                change_pct = ((target_price - current_price) / current_price) * 100
+                
+                opp = {
+                    "symbol": sym,
+                    "current_price": round(current_price, 2),
+                    "expected_price": round(target_price, 2),
+                    "expected_change_pct": round(change_pct, 2)
+                }
+                
+                if change_pct > 0:
+                    bullish_opts.append(opp)
+                else:
+                    bearish_opts.append(opp)
+            except Exception as e:
+                print(f"[Background Opportunities Scanner] Failed to scan {sym}: {e}")
+                
+        bullish_opts = sorted(bullish_opts, key=lambda x: x["expected_change_pct"], reverse=True)
+        bearish_opts = sorted(bearish_opts, key=lambda x: x["expected_change_pct"])
+        
+        result = {
+            "bullish": bullish_opts[:10],
+            "bearish": bearish_opts[:10]
+        }
+        
+        serialized = json.dumps(result)
+        entry = db.get(CacheEntry, cache_key)
+        if entry:
+            entry.payload = serialized
+            entry.expires_at = datetime.now(timezone.utc) + timedelta(hours=6)
+        else:
+            entry = CacheEntry(
+                key=cache_key,
+                payload=serialized,
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=6)
+            )
+            db.add(entry)
+        db.commit()
+        print(f"[Background Opportunities Scanner] Successfully updated opportunities cache at {datetime.now(timezone.utc)}")
+    except Exception as e:
+        print(f"[Background Opportunities Scanner Error] Failed: {e}")
+    finally:
+        db.close()
 
 @router.post("/run")
 def run_forecast(payload: ForecastRunRequest, db: Session = Depends(get_db)):
@@ -102,26 +174,29 @@ def get_signal_card(
         raise HTTPException(status_code=500, detail=f"Failed to generate signal card: {str(exc)}")
 
 @router.get("/opportunities")
-def get_opportunities(db: Session = Depends(get_db)):
+def get_opportunities(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     try:
         import json
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timezone, timedelta
         
         cache_key = "forecast_opportunities"
         entry = db.get(CacheEntry, cache_key)
-        if entry and entry.expires_at.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+        now_utc = datetime.now(timezone.utc)
+        
+        cache_stale = (not entry) or (entry.expires_at.replace(tzinfo=timezone.utc) < now_utc)
+        
+        if cache_stale:
+            background_tasks.add_task(update_opportunities_in_background)
+            
+        if entry:
             return json.loads(entry.payload)
             
-        # Preset universe of 15 major US/Indian stocks to prevent timeouts
-        preset_universe = [
-            "AAPL", "MSFT", "NVDA", "TSLA", "GOOGL", "AMZN", "META", "NFLX", "AMD",
-            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "TATAMOTORS.NS"
-        ]
-        
+        # Quick synchronous scan for 5 major stocks if cache is completely empty
+        quick_universe = ["AAPL", "MSFT", "NVDA", "RELIANCE.NS", "TCS.NS"]
         bullish_opts = []
         bearish_opts = []
         
-        for sym in preset_universe:
+        for sym in quick_universe:
             try:
                 df = get_history_df(sym, "1y", db)
                 res = train_and_forecast(df, "seasonal_trend", 30, db)
@@ -141,32 +216,16 @@ def get_opportunities(db: Session = Depends(get_db)):
                     bullish_opts.append(opp)
                 else:
                     bearish_opts.append(opp)
-            except Exception as e:
-                print(f"[Opportunities Scanner] Failed to scan {sym}: {e}")
+            except Exception:
+                pass
                 
         bullish_opts = sorted(bullish_opts, key=lambda x: x["expected_change_pct"], reverse=True)
         bearish_opts = sorted(bearish_opts, key=lambda x: x["expected_change_pct"])
         
-        result = {
-            "bullish": bullish_opts[:5],
-            "bearish": bearish_opts[:5]
+        return {
+            "bullish": bullish_opts,
+            "bearish": bearish_opts
         }
-        
-        # Save to cache with 6 hours TTL
-        serialized = json.dumps(result)
-        if entry:
-            entry.payload = serialized
-            entry.expires_at = datetime.now(timezone.utc) + timedelta(hours=6)
-        else:
-            entry = CacheEntry(
-                key=cache_key,
-                payload=serialized,
-                expires_at=datetime.now(timezone.utc) + timedelta(hours=6)
-            )
-            db.add(entry)
-        db.commit()
-        
-        return result
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to scan opportunities: {str(exc)}")
 
@@ -174,14 +233,16 @@ def get_opportunities(db: Session = Depends(get_db)):
 def get_accuracy_tracker(db: Session = Depends(get_db)):
     try:
         from sqlalchemy import select
-        from datetime import datetime, timezone
+        from datetime import datetime, timezone, timedelta
         
-        # Update elapsed saved forecasts where actual close price is still missing
+        # Update elapsed saved forecasts where actual close price is still missing and last_checked_at is older than 24h
         today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
         
         q_pending = select(SavedForecast).where(
             SavedForecast.actual_price == None,
-            SavedForecast.forecast_date <= today_str
+            SavedForecast.forecast_date <= today_str,
+            (SavedForecast.last_checked_at == None) | (SavedForecast.last_checked_at < one_day_ago)
         )
         pending = db.scalars(q_pending).all()
         
@@ -197,6 +258,7 @@ def get_accuracy_tracker(db: Session = Depends(get_db)):
                     df["DateStr"] = df["Date"].apply(lambda d: d.strftime("%Y-%m-%d") if isinstance(d, datetime) else str(d)[:10])
                     
                     for entry in entries:
+                        entry.last_checked_at = datetime.now(timezone.utc)
                         row = df[df["DateStr"] == entry.forecast_date]
                         if not row.empty:
                             entry.actual_price = float(row.iloc[0]["Close"])
@@ -208,7 +270,9 @@ def get_accuracy_tracker(db: Session = Depends(get_db)):
                                 entry.actual_price = float(closer_rows.iloc[-1]["Close"])
                 except Exception as e:
                     print(f"[Accuracy Sync] Failed to update actuals for {symbol}: {e}")
-                    
+                    for entry in entries:
+                        entry.last_checked_at = datetime.now(timezone.utc)
+                        
             db.commit()
             
         q_resolved = select(SavedForecast).where(
