@@ -141,3 +141,15 @@ export async function compareForecasts(symbol: string, model: string) {
   return (await api.get("/forecast/compare", { params: { symbol, model } })).data;
 }
 
+export async function getTechnicalSignal(symbol: string) {
+  return (await api.get("/forecast/signal-card", { params: { symbol } })).data;
+}
+
+export async function getForecastOpportunities() {
+  return (await api.get("/forecast/opportunities")).data;
+}
+
+export async function getForecastAccuracy() {
+  return (await api.get("/forecast/accuracy")).data;
+}
+

@@ -11,6 +11,10 @@ import {
   Info,
   LineChart as LineIcon,
   HelpCircle,
+  AlertTriangle,
+  CheckCircle,
+  Newspaper,
+  ShieldAlert,
 } from "lucide-react";
 import {
   AreaChart,
@@ -56,19 +60,27 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
       date: h.date,
       close: h.close,
     }));
-    const fore = (forecastData.forecast || []).map((f: any) => ({
-      date: f.date,
-      base: f.base,
-      upper: f.upper,
-      lower: f.lower,
+    const scens = (forecastData.scenarios || []).map((s: any) => ({
+      date: s.date,
+      neutral: s.neutral,
+      bull: s.bull,
+      bear: s.bear,
     }));
 
-    // To connect the line smoothly, we overlap the last historical point in the forecast line
-    if (hist.length > 0 && fore.length > 0) {
-      fore[0].base_connected = hist[hist.length - 1].close;
+    if (hist.length > 0 && scens.length > 0) {
+      const lastHist = hist[hist.length - 1];
+      const transitionPoint = {
+        date: lastHist.date,
+        close: lastHist.close,
+        neutral: lastHist.close,
+        bull: lastHist.close,
+        bear: lastHist.close,
+      };
+      const histSlice = hist.slice(0, -1);
+      return [...histSlice, transitionPoint, ...scens];
     }
 
-    return [...hist, ...fore];
+    return [...hist, ...scens];
   }, [forecastData]);
 
   // Find split point for historical vs forecast
@@ -423,11 +435,6 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
                     <stop offset="5%" stopColor="#5f7dff" stopOpacity={0.15} />
                     <stop offset="95%" stopColor="#5f7dff" stopOpacity={0.01} />
                   </linearGradient>
-                  {/* Confidence bounds area gradient */}
-                  <linearGradient id="colorBounds" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#7b96ff" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="#7b96ff" stopOpacity={0.0} />
-                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(120, 140, 220, 0.08)" />
                 <XAxis dataKey="date" minTickGap={40} tick={{ fill: "var(--text-muted)", fontSize: "11px" }} stroke="var(--border)" />
@@ -453,45 +460,39 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
                   name="Historical Close"
                 />
 
-                {/* Shaded confidence interval band */}
+                {/* Neutral forecast line */}
                 <Area
                   type="monotone"
-                  dataKey="upper"
-                  stroke="rgba(95, 125, 255, 0.15)"
-                  strokeWidth={0.5}
-                  fill="url(#colorBounds)"
-                  name="95% Upper Bound"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="lower"
-                  stroke="rgba(95, 125, 255, 0.15)"
-                  strokeWidth={0.5}
-                  fill="none"
-                  name="95% Lower Bound"
-                />
-
-                {/* Connect historical to base prediction */}
-                <Area
-                  type="monotone"
-                  dataKey="base_connected"
-                  stroke="#5f7dff"
-                  strokeWidth={2.5}
-                  strokeDasharray="4 4"
-                  fill="none"
-                  dot={false}
-                  name="Forecast Trigger"
-                />
-
-                {/* Future forecast line */}
-                <Area
-                  type="monotone"
-                  dataKey="base"
+                  dataKey="neutral"
                   stroke="#5f7dff"
                   strokeWidth={3}
                   fill="url(#colorForecast)"
                   dot={false}
-                  name="Base Forecast"
+                  name="Neutral Forecast"
+                />
+
+                {/* Bull forecast line */}
+                <Area
+                  type="monotone"
+                  dataKey="bull"
+                  stroke="#00c9a7"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  fill="none"
+                  dot={false}
+                  name="Bull Scenario"
+                />
+
+                {/* Bear forecast line */}
+                <Area
+                  type="monotone"
+                  dataKey="bear"
+                  stroke="#ff6b8a"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  fill="none"
+                  dot={false}
+                  name="Bear Scenario"
                 />
 
                 {/* vertical line at split point */}
@@ -509,16 +510,16 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
         )}
       </motion.section>
 
-      {/* 4. AI Insights Panel */}
+      {/* 4. AI Insights & Sentiment Correlation Card (wide) */}
       <motion.section
-        className="glass-card"
+        className="glass-card wide"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
           <Brain size={18} style={{ color: "var(--primary)" }} />
-          <h3>AI Predictive Insights</h3>
+          <h3>AI Analytics &amp; News Correlation</h3>
         </div>
 
         {forecastData ? (
@@ -581,41 +582,199 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
             <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "8px", lineHeight: "1.4" }}>
               {forecastData.insights.summary}
             </p>
-            <p style={{ fontSize: "13.5px", color: "var(--text-secondary)", lineHeight: "1.6", margin: 0 }}>
+            <p style={{ fontSize: "13.5px", color: "var(--text-secondary)", lineHeight: "1.6", marginBottom: "20px" }}>
               {forecastData.insights.details}
             </p>
+
+            {/* News Correlation Engine */}
+            {forecastData.news_correlation && (
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "16px", marginTop: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                  <Newspaper size={16} style={{ color: "var(--primary)" }} />
+                  <h4 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
+                    AI News Sentiment Correlation
+                  </h4>
+                  <span
+                    style={{
+                      marginLeft: "auto",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      padding: "4px 8px",
+                      borderRadius: "6px",
+                      background:
+                        forecastData.news_correlation.sentiment === "positive"
+                          ? "rgba(0, 201, 167, 0.12)"
+                          : forecastData.news_correlation.sentiment === "negative"
+                          ? "rgba(255, 107, 138, 0.14)"
+                          : "rgba(120, 140, 220, 0.12)",
+                      color:
+                        forecastData.news_correlation.sentiment === "positive"
+                          ? "#00c9a7"
+                          : forecastData.news_correlation.sentiment === "negative"
+                          ? "#ff6b8a"
+                          : "var(--text-secondary)",
+                    }}
+                  >
+                    Sentiment: {forecastData.news_correlation.sentiment} ({forecastData.news_correlation.score > 0 ? "+" : ""}{forecastData.news_correlation.score.toFixed(2)})
+                  </span>
+                </div>
+                <p style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: "1.5", margin: "0 0 10px 0" }}>
+                  {forecastData.news_correlation.summary}
+                </p>
+                {forecastData.news_correlation.reasons && forecastData.news_correlation.reasons.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {forecastData.news_correlation.reasons.map((reason: string, idx: number) => (
+                      <div key={idx} style={{ fontSize: "12px", color: "var(--text-muted)", display: "flex", gap: "6px", alignItems: "center" }}>
+                        <span style={{ color: "var(--accent-violet)" }}>•</span>
+                        <span>"{reason}"</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>Awaiting model computation...</p>
         )}
       </motion.section>
 
-      {/* 5. Metrics Panel */}
+      {/* 5. Multi-Factor Analyst Desk (regular) */}
       <motion.section
         className="glass-card"
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+          <ShieldAlert size={18} style={{ color: "var(--primary)" }} />
+          <h3>Multi-Factor Stability</h3>
+        </div>
+
+        {forecastData && forecastData.multifactor ? (
+          <div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: "20px" }}>
+              <div
+                style={{
+                  width: "90px",
+                  height: "90px",
+                  borderRadius: "50%",
+                  border: "4px solid var(--primary)",
+                  display: "grid",
+                  placeItems: "center",
+                  background: "rgba(79, 110, 247, 0.08)",
+                  boxShadow: "0 0 15px rgba(79, 110, 247, 0.15)",
+                  marginBottom: "8px"
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: "20px", fontWeight: 800, color: "var(--text-primary)" }}>
+                    {forecastData.multifactor.confidence}%
+                  </strong>
+                  <span style={{ display: "block", fontSize: "9px", color: "var(--text-muted)", textTransform: "uppercase" }}>
+                    Confidence
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {/* Data Quality */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12.5px" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Data Quality:</span>
+                <span
+                  className="price-badge positive"
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    background:
+                      forecastData.multifactor.data_quality === "Excellent"
+                        ? "rgba(0, 201, 167, 0.12)"
+                        : "rgba(255, 179, 71, 0.12)",
+                    color:
+                      forecastData.multifactor.data_quality === "Excellent"
+                        ? "#00c9a7"
+                        : "var(--accent-amber)"
+                  }}
+                >
+                  {forecastData.multifactor.data_quality}
+                </span>
+              </div>
+
+              {/* Trend Stability */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12.5px" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Trend Stability:</span>
+                <span
+                  className="price-badge positive"
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    background:
+                      forecastData.multifactor.trend_stability === "High"
+                        ? "rgba(0, 201, 167, 0.12)"
+                        : forecastData.multifactor.trend_stability === "Moderate"
+                        ? "rgba(79, 110, 247, 0.12)"
+                        : "rgba(255, 107, 138, 0.12)",
+                    color:
+                      forecastData.multifactor.trend_stability === "High"
+                        ? "#00c9a7"
+                        : forecastData.multifactor.trend_stability === "Moderate"
+                        ? "var(--primary)"
+                        : "#ff6b8a"
+                  }}
+                >
+                  {forecastData.multifactor.trend_stability}
+                </span>
+              </div>
+
+              {/* Volatility Risk */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12.5px" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Volatility Risk:</span>
+                <span
+                  className="price-badge negative"
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    background:
+                      forecastData.multifactor.volatility_risk === "High"
+                        ? "rgba(255, 107, 138, 0.14)"
+                        : forecastData.multifactor.volatility_risk === "Medium"
+                        ? "rgba(255, 179, 71, 0.12)"
+                        : "rgba(0, 201, 167, 0.12)",
+                    color:
+                      forecastData.multifactor.volatility_risk === "High"
+                        ? "#ff6b8a"
+                        : forecastData.multifactor.volatility_risk === "Medium"
+                        ? "var(--accent-amber)"
+                        : "#00c9a7"
+                  }}
+                >
+                  {forecastData.multifactor.volatility_risk}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>Awaiting model computation...</p>
+        )}
+      </motion.section>
+
+      {/* 6. Backtested Evaluation Metrics (regular) */}
+      <motion.section
+        className="glass-card"
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Table2 size={18} style={{ color: "var(--primary)" }} />
-            <h3>Backtested Evaluation Metrics</h3>
+            <h3>Evaluation Metrics</h3>
           </div>
-          {forecastData && (
-            <span
-              style={{
-                fontSize: "12px",
-                color: "var(--accent-teal)",
-                fontWeight: 700,
-                background: "rgba(0, 201, 167, 0.08)",
-                padding: "4px 10px",
-                borderRadius: "12px",
-              }}
-            >
-              Fit Confidence: {forecastData.insights.accuracy_rating}
-            </span>
-          )}
         </div>
 
         {forecastData ? (
@@ -665,13 +824,68 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
                 METRIC_INFOS[hoveredMetric]
               ) : (
                 <span style={{ color: "var(--text-muted)" }}>
-                  Hover over any metric tile to view its mathematical explanation and standard interpretation.
+                  Hover over any metric tile to view its interpretation.
                 </span>
               )}
             </div>
           </div>
         ) : (
-          <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>Awaiting model computation...</p>
+          <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>Awaiting model metrics...</p>
+        )}
+      </motion.section>
+
+      {/* 7. Forecast Explanation Engine (full-wide) */}
+      <motion.section
+        className="glass-card full-wide"
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+          <TrendingUp size={18} style={{ color: "var(--primary)" }} />
+          <h3>Forecast Explanations &amp; Market Drivers</h3>
+        </div>
+
+        {forecastData && forecastData.explanations ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }} className="screener-filters">
+            {/* Drivers Column */}
+            <div style={{ background: "rgba(0, 201, 167, 0.04)", border: "1px solid rgba(0, 201, 167, 0.15)", borderRadius: "12px", padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <CheckCircle size={16} style={{ color: "#00c9a7" }} />
+                <h4 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#00c9a7" }}>
+                  Primary Support Drivers
+                </h4>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {forecastData.explanations.primary_drivers.map((driver: string, idx: number) => (
+                  <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13px", color: "var(--text-secondary)" }}>
+                    <span style={{ color: "#00c9a7", fontWeight: "bold" }}>✓</span>
+                    <span>{driver}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Risks Column */}
+            <div style={{ background: "rgba(255, 107, 138, 0.04)", border: "1px solid rgba(255, 107, 138, 0.15)", borderRadius: "12px", padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <AlertTriangle size={16} style={{ color: "#ff6b8a" }} />
+                <h4 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#ff6b8a" }}>
+                  Overhead Risk Factors
+                </h4>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {forecastData.explanations.risk_factors.map((risk: string, idx: number) => (
+                  <div key={idx} style={{ display: "flex", gap: "8px", alignItems: "flex-start", fontSize: "13px", color: "var(--text-secondary)" }}>
+                    <span style={{ color: "#ff6b8a", fontWeight: "bold" }}>!</span>
+                    <span>{risk}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>Awaiting explanation breakdown...</p>
         )}
       </motion.section>
     </div>

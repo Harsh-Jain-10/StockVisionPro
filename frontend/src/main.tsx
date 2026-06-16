@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Activity, AlertCircle, Bell, Brain, Briefcase, CandlestickChart, Check, CheckCircle, Copy, ExternalLink, Eye, EyeOff, Gauge, History, LineChart as LineChartIcon, ListPlus, MessageCircle, Moon, Plus, Radar, Search, Send, Star, Sun, Table2, Trash2, Wifi, X } from "lucide-react";
+import { Activity, AlertCircle, Bell, Brain, Briefcase, CandlestickChart, Check, CheckCircle, Copy, ExternalLink, Eye, EyeOff, Gauge, History, LineChart as LineChartIcon, ListPlus, MessageCircle, Moon, Plus, Radar, Search, Send, Star, Sun, Table2, Trash2, Wifi, X, Newspaper, Flame, Settings as SettingsIcon } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -46,6 +46,9 @@ import {
 } from "./api/client";
 import { createChart, ColorType } from "lightweight-charts";
 import ForecastStudio from "./components/ForecastStudio";
+import TechnicalSignals from "./components/TechnicalSignals";
+import ForecastOpportunities from "./components/ForecastOpportunities";
+import ForecastAccuracy from "./components/ForecastAccuracy";
 import "./styles/globals.css";
 
 // Apply saved theme before first render
@@ -54,7 +57,7 @@ import "./styles/globals.css";
   document.documentElement.setAttribute("data-theme", saved);
 })();
 
-type View = "dashboard" | "stock" | "compare" | "screener" | "watchlist" | "alerts" | "calendar" | "forecast";
+type View = "dashboard" | "stock" | "compare" | "screener" | "watchlist" | "alerts" | "calendar" | "forecast" | "signals" | "opportunities" | "accuracy" | "sentiment" | "settings";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
@@ -240,14 +243,13 @@ function AppShell() {
       <aside className="sidebar">
         <div className="brand"><span>SV</span><div><strong>StockVision</strong><small>Real markets. Real edge.</small></div></div>
         <NavButton active={view === "dashboard"} onClick={() => setView("dashboard")} icon={<Gauge />} label="Dashboard" />
-        <NavButton active={view === "stock"} onClick={() => setView("stock")} icon={<CandlestickChart />} label="Stock Lab" />
         <NavButton active={view === "forecast"} onClick={() => setView("forecast")} icon={<Brain />} label="Forecast Studio" />
-        <NavButton active={view === "compare"} onClick={() => setView("compare")} icon={<Radar />} label="Compare" />
-        <NavButton active={view === "screener"} onClick={() => setView("screener")} icon={<Table2 />} label="Screener" />
-        <NavButton active={view === "watchlist"} onClick={() => setView("watchlist")} icon={<Star />} label="Watchlist" />
-
+        <NavButton active={view === "signals"} onClick={() => setView("signals")} icon={<Activity />} label="Technical Signals" />
+        <NavButton active={view === "opportunities"} onClick={() => setView("opportunities")} icon={<Flame />} label="Market Opportunities" />
+        <NavButton active={view === "accuracy"} onClick={() => setView("accuracy")} icon={<History />} label="Forecast Accuracy" />
+        <NavButton active={view === "sentiment"} onClick={() => setView("sentiment")} icon={<Newspaper />} label="News Sentiment" />
         <NavButton active={view === "alerts"} onClick={() => setView("alerts")} icon={<Bell />} label="Alerts" />
-        <NavButton active={view === "calendar"} onClick={() => setView("calendar")} icon={<Activity />} label="Econ Calendar" />
+        <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={<SettingsIcon />} label="Settings" />
         
         <div style={{ flexGrow: 1 }} />
         <div style={{ padding: "16px", borderTop: "1px solid var(--border)" }}>
@@ -260,11 +262,17 @@ function AppShell() {
         {view === "dashboard" && <Dashboard setSymbol={setSymbol} setView={setView} />}
         {view === "stock" && <StockLab symbol={symbol} setSymbol={setSymbol} />}
         {view === "forecast" && <ForecastStudio symbol={symbol} setSymbol={setSymbol} />}
+        {view === "signals" && <TechnicalSignals symbol={symbol} />}
+        {view === "opportunities" && <ForecastOpportunities setSymbol={setSymbol} setView={setView} />}
+        {view === "accuracy" && <ForecastAccuracy />}
+        {view === "sentiment" && <NewsSentiment symbol={symbol} />}
+        {view === "alerts" && <Alerts symbol={symbol} />}
+        {view === "settings" && <SettingsView />}
 
+        {/* Backwards compatibility views */}
         {view === "compare" && <Compare />}
         {view === "screener" && <Screener setSymbol={setSymbol} setView={setView} />}
         {view === "watchlist" && <Watchlist setSymbol={setSymbol} setView={setView} />}
-        {view === "alerts" && <Alerts symbol={symbol} />}
         {view === "calendar" && <EconomicCalendar />}
       </main>
       <AiChatbot symbol={symbol} setSymbol={setSymbol} setView={setView} />
@@ -1222,9 +1230,167 @@ function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
   return <div className={`toast ${type}`}>{type === "success" ? "✓" : "✗"} {msg}</div>;
 }
 
+function NewsSentiment({ symbol }: { symbol: string }) {
+  const sentiment = useQuery({ queryKey: ["sentiment", symbol], queryFn: () => getSentiment(symbol) });
+  const ai = useQuery({ queryKey: ["ai", symbol], queryFn: () => getAiSummary(symbol) });
+  const news = useQuery({ queryKey: ["news", symbol], queryFn: () => getNews(symbol) });
 
+  return (
+    <div className="page-grid">
+      <GlassCard className="hero-card">
+        <span className="eyebrow" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <Newspaper size={14} /> AI Sentiment Center
+        </span>
+        <h2>Media Sentiment Analysis &amp; Quote Alignment</h2>
+        <p style={{ margin: "4px 0 0" }}>
+          Analyze active media coverage, compute aggregate market sentiment score, and generate contextual AI explanations for <strong>{symbol.toUpperCase()}</strong>.
+        </p>
+      </GlassCard>
 
+      <GlassCard>
+        <SectionTitle icon={<Gauge />} title="Sentiment Oscillator" />
+        <div style={{ position: "relative" }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: "Positive", value: sentiment.data?.positive_pct ?? 34 },
+                  { name: "Neutral",  value: sentiment.data?.neutral_pct  ?? 33 },
+                  { name: "Negative", value: sentiment.data?.negative_pct ?? 33 },
+                ]}
+                dataKey="value"
+                innerRadius={52}
+                outerRadius={80}
+                startAngle={90}
+                endAngle={-270}
+              >
+                {["#00c9a7", "#ffb347", "#ff6b8a"].map((c) => <Cell key={c} fill={c} />)}
+              </Pie>
+              <Tooltip formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center", pointerEvents: "none" }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#00c9a7" }}>
+              {sentiment.data?.score != null ? sentiment.data.score.toFixed(2) : "0.00"}
+            </div>
+            <div style={{ fontSize: 11, color: "#8899aa", marginTop: 2 }}>Score</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", fontSize: 12, marginTop: 4 }}>
+          <span style={{ color: "#00c9a7" }}>● Pos {(sentiment.data?.positive_pct ?? 0).toFixed(0)}%</span>
+          <span style={{ color: "#ffb347" }}>● Neu {(sentiment.data?.neutral_pct ?? 0).toFixed(0)}%</span>
+          <span style={{ color: "#ff6b8a" }}>● Neg {(sentiment.data?.negative_pct ?? 0).toFixed(0)}%</span>
+        </div>
+      </GlassCard>
 
+      <GlassCard className="wide">
+        <SectionTitle icon={<Brain />} title="AI Sentiment Summary" />
+        <p className="analyst" style={{ fontSize: "14px", lineHeight: "1.6", color: "var(--text-secondary)" }}>
+          {ai.data?.summary || "Analyzing news sentiment indicators..."}
+        </p>
+        <small style={{ fontSize: "11px", color: "var(--text-muted)", display: "block", marginTop: "12px" }}>
+          {ai.data?.disclaimer}
+        </small>
+      </GlassCard>
+
+      <GlassCard className="full-wide">
+        <SectionTitle icon={<Table2 />} title="Headline Articles Ledger" />
+        <div className="news-list" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+          {(news.data || []).length === 0 && (
+            <p style={{ color: "var(--text-secondary)", padding: "8px 0" }}>
+              No recent news articles detected for this ticker.
+            </p>
+          )}
+          {(news.data || []).map((item: any, i: number) => (
+            <a key={item.url || item.title || i} href={item.url || "#"} target="_blank" rel="noopener noreferrer">
+              <b>{item.title || "Untitled"}</b>
+              <em className={item.sentiment === "positive" ? "positive" : item.sentiment === "negative" ? "negative" : ""}
+                style={{ fontStyle: "normal", fontSize: 12, fontWeight: 700 }}>
+                {item.sentiment || "neutral"}
+              </em>
+              <span className="news-meta">
+                {item.source && item.source !== "Unknown" ? item.source : "Financial News"}
+                {item.published_at ? " · " + new Date(item.published_at).toLocaleDateString() : ""}
+              </span>
+            </a>
+          ))}
+        </div>
+      </GlassCard>
+    </div>
+  );
+}
+
+function SettingsView() {
+  const [isDark, setIsDark] = useState(() => localStorage.getItem("sv_theme") === "dark");
+
+  function toggleTheme() {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+    localStorage.setItem("sv_theme", next ? "dark" : "light");
+  }
+
+  return (
+    <div className="page-grid">
+      <GlassCard className="hero-card">
+        <span className="eyebrow" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <SettingsIcon size={14} /> Control Panel
+        </span>
+        <h2>Settings &amp; Workspace Configuration</h2>
+        <p style={{ margin: "4px 0 0" }}>
+          Manage your interface preferences, review machine learning database statuses, and view workspace connection attributes.
+        </p>
+      </GlassCard>
+
+      <GlassCard className="wide">
+        <SectionTitle icon={<SettingsIcon />} title="Interface Preferences" />
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "10px 0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <strong style={{ fontSize: "14px", color: "var(--text-primary)" }}>Interface Theme</strong>
+              <span style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                Toggle between light and dark glassmorphic color themes.
+              </span>
+            </div>
+            <button className="theme-btn" onClick={toggleTheme} title={isDark ? "Switch to light mode" : "Switch to dark mode"}>
+              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          </div>
+
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <strong style={{ fontSize: "14px", color: "var(--text-primary)" }}>Precision Tooltips</strong>
+              <span style={{ display: "block", fontSize: "12px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                Display detailed validation descriptions in the forecast metric grid.
+              </span>
+            </div>
+            <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--accent-teal)", background: "rgba(0, 201, 167, 0.08)", padding: "4px 10px", borderRadius: "12px" }}>
+              Active
+            </span>
+          </div>
+        </div>
+      </GlassCard>
+
+      <GlassCard>
+        <SectionTitle icon={<Wifi />} title="Backend Parameters" />
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "var(--text-secondary)" }}>API Server URL:</span>
+            <strong style={{ fontFamily: "monospace", color: "var(--text-primary)" }}>Local Host</strong>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "var(--text-secondary)" }}>Database:</span>
+            <strong style={{ color: "var(--accent-teal)" }}>Supabase + Atlas</strong>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "var(--text-secondary)" }}>Model Refresh:</span>
+            <strong style={{ color: "var(--text-primary)" }}>Every 6 Hours</strong>
+          </div>
+        </div>
+      </GlassCard>
+    </div>
+  );
+}
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
