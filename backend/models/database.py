@@ -62,6 +62,18 @@ class CacheEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class SavedForecast(Base):
+    __tablename__ = "saved_forecasts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    model: Mapped[str] = mapped_column(String(64))
+    forecast_date: Mapped[str] = mapped_column(String(32), index=True)
+    predicted_price: Mapped[float] = mapped_column(Float)
+    actual_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
 
