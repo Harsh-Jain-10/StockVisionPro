@@ -134,5 +134,37 @@ class TestStockVisionAnalytics(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()["status"], "deleted")
 
+    def test_forecast_endpoints(self):
+        symbol = "AAPL"
+        
+        # 1. Test /api/forecast/run endpoint
+        res = self.client.post(
+            "/api/forecast/run",
+            json={"symbol": symbol, "model": "seasonal_trend", "horizon": 7}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("forecast", data)
+        self.assertIn("metrics", data)
+        self.assertIn("historical", data)
+        self.assertIn("insights", data)
+        self.assertEqual(len(data["forecast"]), 7)
+        self.assertEqual(data["insights"]["direction"] in ["bullish", "bearish", "neutral"], True)
+
+        # 2. Test /api/forecast/compare endpoint
+        res = self.client.get(
+            f"/api/forecast/compare?symbol={symbol}&model=seasonal_trend"
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["symbol"], symbol)
+        self.assertEqual(data["model"], "seasonal_trend")
+        self.assertIn("forecast_7d", data)
+        self.assertIn("forecast_30d", data)
+        self.assertIn("forecast_90d", data)
+        self.assertEqual(len(data["forecast_7d"]), 7)
+        self.assertEqual(len(data["forecast_30d"]), 30)
+        self.assertEqual(len(data["forecast_90d"]), 90)
+
 if __name__ == "__main__":
     unittest.main()
