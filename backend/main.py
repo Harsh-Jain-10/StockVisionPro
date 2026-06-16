@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import select
 from models.database import SessionLocal, init_db, Alert, utc_now
-from routers import ai, alerts, compare, market, stock, watchlist, portfolio, backtest, admin
+from routers import ai, alerts, compare, market, stock, watchlist, backtest
+
 from services.data_service import get_quote, get_history_df
 
 load_dotenv()
@@ -144,9 +145,7 @@ app.include_router(watchlist.router)
 app.include_router(alerts.router)
 app.include_router(compare.router)
 app.include_router(ai.router)
-app.include_router(portfolio.router)
 app.include_router(backtest.router)
-app.include_router(admin.router)
 
 
 def _quote_payload(symbol: str) -> dict:

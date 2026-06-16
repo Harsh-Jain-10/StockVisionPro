@@ -34,27 +34,14 @@ import {
   getHistory,
   getMarketOverview,
   getNews,
-  getPortfolio,
   getQuote,
   getSentiment,
   getSignal,
   getTechnicals,
-  getTransactions,
   getWatchlist,
-  executeTrade,
   runScreener,
   runAiScreener,
   searchStocks,
-  sendOtp,
-  verifyOtp,
-  signIn,
-  requestCredits,
-  adminSignIn,
-  adminVerifyOtp,
-  getAdminRequests,
-  approveRequest,
-  rejectRequest,
-  getUserCreditRequests,
   type Quote,
 } from "./api/client";
 import { createChart, ColorType } from "lightweight-charts";
@@ -66,7 +53,7 @@ import "./styles/globals.css";
   document.documentElement.setAttribute("data-theme", saved);
 })();
 
-type View = "dashboard" | "stock" | "compare" | "screener" | "watchlist" | "alerts" | "portfolio" | "calendar";
+type View = "dashboard" | "stock" | "compare" | "screener" | "watchlist" | "alerts" | "calendar";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
@@ -213,376 +200,7 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
 }
 
 
-function AdminLoginPortal({ onLogin, navigate }: { onLogin: (token: string, email: string) => void; navigate: (path: string) => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<1 | 2>(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  function showLocalToast(msg: string, type: "success" | "error") {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  }
-
-  async function handleSubmitStep1(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const res = await adminSignIn(email, password);
-      if (res.success) {
-        setStep(2);
-        showLocalToast(res.message || "OTP verification code sent to your admin email.", "success");
-      } else {
-        setError(res.message || "Invalid credentials.");
-      }
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Invalid admin credentials.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSubmitStep2(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      const res = await adminVerifyOtp(email, code);
-      if (res.success) {
-        showLocalToast("Admin authenticated successfully!", "success");
-        setTimeout(() => {
-          onLogin(res.token, res.email);
-        }, 1000);
-      } else {
-        setError(res.message || "Invalid OTP code.");
-      }
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || "Invalid code or verification error.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const digitBoxes = Array.from({ length: 6 }).map((_, idx) => {
-    const char = code[idx] || "";
-    const isFocused = idx === code.length && !loading;
-    return (
-      <div 
-        key={idx}
-        style={{
-          width: "clamp(34px, 9vw, 48px)",
-          height: "clamp(42px, 11vw, 56px)",
-          borderRadius: "10px",
-          border: isFocused ? "2px solid var(--primary)" : "1px solid var(--border)",
-          background: "var(--bg-surface)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "clamp(16px, 4.5vw, 22px)",
-          fontWeight: 700,
-          color: "var(--text-primary)",
-          boxShadow: isFocused ? "0 0 12px rgba(95, 125, 255, 0.25)" : "none",
-          transition: "all 0.15s ease",
-        }}
-      >
-        {char}
-        {isFocused && (
-          <motion.span 
-            animate={{ opacity: [0, 1, 0] }}
-            transition={{ repeat: Infinity, duration: 0.8 }}
-            style={{ width: "2px", height: "20px", background: "var(--primary)" }}
-          />
-        )}
-      </div>
-    );
-  });
-
-  return (
-    <div style={{
-      position: "fixed",
-      top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: "rgba(10, 15, 30, 0.72)",
-      backdropFilter: "blur(20px)",
-      zIndex: 9999,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "20px"
-    }}>
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
-      <motion.div 
-        className="glass-card" 
-        style={{ width: "100%", maxWidth: "420px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px" }}
-        initial={{ opacity: 0, scale: 0.95, y: 15 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div style={{ display: "inline-flex", padding: "12px", borderRadius: "16px", background: "linear-gradient(135deg, #ff1744, #ff5252)", color: "white", marginBottom: "16px" }}>
-            <Activity size={32} />
-          </div>
-          <h2 style={{ fontSize: "24px", fontWeight: 700, margin: "0 0 8px 0" }}>SV Admin Portal</h2>
-          <p style={{ color: "var(--text-secondary)", fontSize: 14, margin: 0 }}>Secure control desk for StockVision Pro system administration.</p>
-        </div>
-
-        {error && (
-          <div className="inline-error" style={{ padding: "10px 14px", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {step === 1 ? (
-          <form onSubmit={handleSubmitStep1} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>Administrator Email</label>
-              <input 
-                type="email" 
-                className="field" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                placeholder="admin@stockvision.pro"
-                required
-                disabled={loading}
-                autoFocus
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>Master Password</label>
-              <input 
-                type="password" 
-                className="field" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                placeholder="Enter admin password"
-                required
-                disabled={loading}
-              />
-            </div>
-            
-            <button type="submit" className="primary-btn" disabled={loading} style={{ background: "linear-gradient(135deg, #ff1744, #ff5252)", width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {loading ? "Verifying..." : "Sign In & Send OTP"}
-            </button>
-            <div style={{ textAlign: "center", marginTop: 4 }}>
-              <button type="button" className="range-btn" onClick={() => navigate("/")} style={{ width: "100%" }}>
-                ← Go to User Terminal
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={handleSubmitStep2} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", textAlign: "center" }}>
-                Enter the 6-digit OTP code sent to <strong>{email}</strong>
-              </label>
-              <div style={{ position: "relative", display: "flex", justifyContent: "space-between", gap: "6px", margin: "16px 0" }}>
-                {digitBoxes}
-                <input 
-                  type="text"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
-                  style={{
-                    position: "absolute",
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    opacity: 0, width: "100%", cursor: "pointer", zIndex: 10
-                  }}
-                  autoFocus
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            <button type="submit" className="primary-btn" disabled={loading || code.length < 6} style={{ background: "linear-gradient(135deg, #ff1744, #ff5252)", width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {loading ? "Authenticating..." : "Verify & Enter Portal"}
-            </button>
-
-            <button type="button" className="range-btn" onClick={() => setStep(1)} style={{ width: "100%" }} disabled={loading}>
-              ← Change Details
-            </button>
-          </form>
-        )}
-      </motion.div>
-    </div>
-  );
-}
-
-function AdminDashboard({ email, onLogout }: { email: string; onLogout: () => void }) {
-  const qc = useQueryClient();
-  const requests = useQuery({ queryKey: ["admin-all-requests"], queryFn: getAdminRequests });
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
-  function showToast(msg: string, type: "success" | "error") {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  }
-
-  const approveMutation = useMutation({
-    mutationFn: (id: number) => approveRequest(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-all-requests"] });
-      showToast("Credit request successfully approved!", "success");
-    },
-    onError: (err: any) => {
-      showToast(err?.response?.data?.detail || "Approval failed.", "error");
-    }
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) => rejectRequest(id, reason),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-all-requests"] });
-      showToast("Credit request successfully rejected.", "success");
-    },
-    onError: (err: any) => {
-      showToast(err?.response?.data?.detail || "Rejection failed.", "error");
-    }
-  });
-
-  const reqs = (requests.data || []) as any[];
-  
-  const metrics = useMemo(() => {
-    return {
-      total: reqs.length,
-      pending: reqs.filter((r: any) => r.status === "pending").length,
-      approved: reqs.filter((r: any) => r.status === "approved").length,
-      rejected: reqs.filter((r: any) => r.status === "rejected").length,
-    };
-  }, [reqs]);
-
-  return (
-    <div className="app" style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "var(--bg-primary)" }}>
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
-      
-      <header className="topbar" style={{ flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border)", background: "var(--bg-card)" }}>
-        <div>
-          <h1 style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "22px", margin: 0 }}>
-            <span style={{ display: "inline-flex", padding: 6, borderRadius: 10, background: "linear-gradient(135deg, #ff1744, #ff5252)", color: "white" }}><Activity size={18} /></span>
-            StockVision Pro Admin Panel
-          </h1>
-          <p style={{ margin: 0, fontSize: "12px", color: "var(--text-secondary)" }}>Administrative controls and simulation credit approval desk.</p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{ fontSize: "13px", padding: "6px 12px", borderRadius: "12px", background: "var(--bg-surface)", border: "1px solid var(--border)", color: "var(--text-primary)", fontWeight: 600 }}>
-            🛡️ {email}
-          </span>
-          <button 
-            onClick={onLogout} 
-            className="primary-btn" 
-            style={{ padding: "8px 16px", background: "linear-gradient(135deg, #ff1744, #ff5252)", border: "none", fontSize: "13px", cursor: "pointer", borderRadius: "10px" }}
-          >
-            Logout Session
-          </button>
-        </div>
-      </header>
-
-      <main style={{ flexGrow: 1, padding: "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "24px" }}>
-        
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-          <GlassCard className="metric-card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <small>Total Request Submissions</small>
-            <strong>{metrics.total}</strong>
-          </GlassCard>
-          <GlassCard className="metric-card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <small>Pending Verification</small>
-            <strong style={{ color: "#ffb347" }}>{metrics.pending}</strong>
-          </GlassCard>
-          <GlassCard className="metric-card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <small>Total Approved Requests</small>
-            <strong style={{ color: "var(--positive)" }}>{metrics.approved}</strong>
-          </GlassCard>
-          <GlassCard className="metric-card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <small>Total Rejected Requests</small>
-            <strong style={{ color: "var(--negative)" }}>{metrics.rejected}</strong>
-          </GlassCard>
-        </div>
-
-        <GlassCard className="wide" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <SectionTitle icon={<Table2 />} title="Credit Approvals Registry" />
-          <p style={{ color: "var(--text-secondary)", fontSize: "13px", margin: 0 }}>Review all submitted paper trading funding requests from users. Approve mock credits directly or reject with a formal note.</p>
-          
-          {requests.isLoading ? (
-            <p style={{ color: "var(--text-muted)", padding: "20px 0" }}>Retrieving requests history...</p>
-          ) : reqs.length === 0 ? (
-            <p style={{ color: "var(--text-muted)", padding: "20px 0" }}>No credit request submissions found in the database.</p>
-          ) : (
-            <table className="holdings-table">
-              <thead>
-                <tr>
-                  <th>Request ID</th>
-                  <th>User ID / Email</th>
-                  <th>Requested Amount</th>
-                  <th>Reason Given</th>
-                  <th>Created Date</th>
-                  <th>Last Updated</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: "right" }}>Actions / Audit Trail</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reqs.map((req: any) => (
-                  <tr key={req.id}>
-                    <td><strong>#{req.id}</strong></td>
-                    <td>{req.user_email || req.user_id}</td>
-                    <td className="mono" style={{ fontWeight: 700 }}>${money(req.amount)}</td>
-                    <td>{req.reason || "None"}</td>
-                    <td className="mono" style={{ fontSize: 11 }}>{new Date(req.created_at).toLocaleString()}</td>
-                    <td className="mono" style={{ fontSize: 11 }}>{new Date(req.updated_at).toLocaleString()}</td>
-                    <td>
-                      <span className={`price-badge ${req.status === "approved" ? "positive" : req.status === "pending" ? "warning" : "negative"}`}>{req.status}</span>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      {req.status === "pending" ? (
-                        <div style={{ display: "inline-flex", gap: "8px" }}>
-                          <button 
-                            className="primary-btn" 
-                            style={{ padding: "6px 12px", fontSize: "12px", background: "#00c9a7", cursor: "pointer", border: "none", borderRadius: "6px" }} 
-                            onClick={() => approveMutation.mutate(req.id)} 
-                            disabled={approveMutation.isPending}
-                          >
-                            Approve
-                          </button>
-                          <button 
-                            className="primary-btn" 
-                            style={{ padding: "6px 12px", fontSize: "12px", background: "#ff6b8a", cursor: "pointer", border: "none", borderRadius: "6px" }} 
-                            onClick={() => {
-                              const reason = prompt("Enter a brief reason for rejecting this credit request (mandatory):");
-                              if (reason === null) return;
-                              if (!reason.trim()) {
-                                alert("A rejection reason is mandatory!");
-                                return;
-                              }
-                              rejectMutation.mutate({ id: req.id, reason: reason.trim() });
-                            }} 
-                            disabled={rejectMutation.isPending}
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : req.status === "approved" ? (
-                        <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
-                          ✓ Approved {req.approved_at && `on ${new Date(req.approved_at).toLocaleString()}`} {req.approved_by && `by ${req.approved_by}`}
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: "11px", color: "var(--text-secondary)", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                          <span>✗ Rejected</span>
-                          {req.admin_note && <small style={{ color: "var(--accent-rose)", fontStyle: "italic" }}>"{req.admin_note}"</small>}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </GlassCard>
-      </main>
-    </div>
-  );
-}
 
 function AppShell() {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
@@ -592,33 +210,11 @@ function AppShell() {
     setCurrentPath(path);
   };
 
-  // Safety: on mount, ensure no stale admin role leaks into user session
-  // User sessions must only ever have role="user"
-  useEffect(() => {
-    const storedRole = sessionStorage.getItem("svp_role");
-    if (storedRole === "admin") {
-      // This means a stale admin role ended up in user session — clear it
-      sessionStorage.setItem("svp_role", "user");
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleLocationChange = () => {
-      setCurrentPath(window.location.pathname);
-    };
-    window.addEventListener("popstate", handleLocationChange);
-    return () => window.removeEventListener("popstate", handleLocationChange);
-  }, []);
-
   const [view, setView] = useState<View>("dashboard");
   const [symbol, setSymbol] = useState("AAPL");
   const [userId, setUserId] = useState("local_user");
   const [userEmail, setUserEmail] = useState("local_user@stockvision.pro");
-  // User role is always "user" for standard accounts
   const [userRole, setUserRole] = useState("user");
-
-  const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem("svp_admin_token") || "");
-  const [adminEmail, setAdminEmail] = useState(() => sessionStorage.getItem("svp_admin_email") || "");
 
   const qc = useQueryClient();
 
@@ -633,67 +229,10 @@ function AppShell() {
     qc.invalidateQueries();
   }
 
-  function handleAdminLogin(token: string, email: string) {
-    sessionStorage.setItem("svp_admin_token", token);
-    sessionStorage.setItem("svp_admin_email", email);
-    sessionStorage.setItem("svp_admin_role", "admin");
-    setAdminToken(token);
-    setAdminEmail(email);
-    qc.invalidateQueries();
-    navigate("/admin/dashboard");
-  }
-
-  function handleAdminLogout() {
-    sessionStorage.removeItem("svp_admin_token");
-    sessionStorage.removeItem("svp_admin_email");
-    sessionStorage.removeItem("svp_admin_role");
-    setAdminToken("");
-    setAdminEmail("");
-    qc.invalidateQueries();
-    navigate("/admin/login");
-  }
-
-  // Enforce secure routing for admin pages (Rule of Hooks compliant)
-  useEffect(() => {
-    const isAdPath = currentPath.startsWith("/admin");
-    if (isAdPath) {
-      if (currentPath === "/admin/login") {
-        if (adminToken) {
-          navigate("/admin/dashboard");
-        }
-      } else {
-        if (!adminToken) {
-          navigate("/admin/login");
-        }
-      }
-    }
-  }, [currentPath, adminToken]);
-
-  const isAdminPath = currentPath.startsWith("/admin");
-
-  // These hooks MUST be called unconditionally (Rules of Hooks).
-  // We disable them on admin paths using the `enabled` flag.
-  const overview = useQuery({ queryKey: ["overview"], queryFn: getMarketOverview, enabled: !isAdminPath });
+  const overview = useQuery({ queryKey: ["overview"], queryFn: getMarketOverview });
   const fallbackTicker = (overview.data?.indices || []) as Quote[];
-  const live = useLiveQuotes(!isAdminPath ? ["^GSPC", "^IXIC", "^DJI", "^NSEI", "^BSESN", "GLD", "BTC-USD", symbol] : []);
+  const live = useLiveQuotes(["^GSPC", "^IXIC", "^DJI", "^NSEI", "^BSESN", "GLD", "BTC-USD", symbol]);
   const ticker = live.quotes.length ? live.quotes : fallbackTicker;
-
-  // ── Admin Portal routing ──────────────────────────────────────────────────
-  if (isAdminPath) {
-    if (currentPath === "/admin/login") {
-      if (adminToken) {
-        return <div style={{ color: "var(--text-secondary)", padding: 20 }}>Loading admin workspace...</div>;
-      }
-      return <AdminLoginPortal onLogin={handleAdminLogin} navigate={navigate} />;
-    }
-
-    // Route Guard for secure Admin dashboard view
-    if (!adminToken) {
-      return <div style={{ color: "var(--text-secondary)", padding: 20 }}>Redirecting to secure login...</div>;
-    }
-
-    return <AdminDashboard email={adminEmail} onLogout={handleAdminLogout} />;
-  }
 
   return (
     <div className="app">
@@ -704,7 +243,6 @@ function AppShell() {
         <NavButton active={view === "compare"} onClick={() => setView("compare")} icon={<Radar />} label="Compare" />
         <NavButton active={view === "screener"} onClick={() => setView("screener")} icon={<Table2 />} label="Screener" />
         <NavButton active={view === "watchlist"} onClick={() => setView("watchlist")} icon={<Star />} label="Watchlist" />
-        <NavButton active={view === "portfolio"} onClick={() => setView("portfolio")} icon={<Briefcase />} label="Portfolio" />
 
         <NavButton active={view === "alerts"} onClick={() => setView("alerts")} icon={<Bell />} label="Alerts" />
         <NavButton active={view === "calendar"} onClick={() => setView("calendar")} icon={<Activity />} label="Econ Calendar" />
@@ -718,7 +256,6 @@ function AppShell() {
         <Topbar symbol={symbol} setSymbol={setSymbol} setView={setView} live={live} />
         <TickerTape quotes={ticker} />
         {view === "dashboard" && <Dashboard setSymbol={setSymbol} setView={setView} />}
-        {view === "portfolio" && <Portfolio setSymbol={setSymbol} setView={setView} />}
         {view === "stock" && <StockLab symbol={symbol} setSymbol={setSymbol} />}
 
         {view === "compare" && <Compare />}
@@ -1682,178 +1219,7 @@ function Toast({ msg, type }: { msg: string; type: "success" | "error" }) {
   return <div className={`toast ${type}`}>{type === "success" ? "✓" : "✗"} {msg}</div>;
 }
 
-function Portfolio({ setSymbol, setView }: { setSymbol: (s: string) => void; setView: (v: View) => void }) {
-  const qc = useQueryClient();
-  const portfolio = useQuery({ queryKey: ["portfolio"], queryFn: getPortfolio });
-  const transactions = useQuery({ queryKey: ["transactions"], queryFn: getTransactions });
-  const userRequests = useQuery({ queryKey: ["user-credit-requests"], queryFn: getUserCreditRequests });
 
-  const [tradeSymbol, setTradeSymbol] = useState("");
-  const [shares, setShares] = useState(1);
-  const [action, setAction] = useState<"buy" | "sell">("buy");
-  const [tradeError, setTradeError] = useState("");
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
-  function showToast(msg: string, type: "success" | "error") {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  }
-
-  const trade = useMutation({
-    mutationFn: () => executeTrade(tradeSymbol, shares, action),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["portfolio"] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      setTradeSymbol("");
-      setShares(1);
-      setTradeError("");
-      showToast(`${action === "buy" ? "Bought" : "Sold"} ${shares} share(s) of ${tradeSymbol}`, "success");
-    },
-    onError: (err: any) => {
-      const detail = err?.response?.data?.detail;
-      const msg = detail ?? (action === "sell" ? "Sell failed: insufficient shares." : "Trade failed. Check symbol and try again.");
-      setTradeError(msg);
-      showToast(msg, "error");
-    },
-    onSettled: () => {
-      // Always reset mutation state so button becomes clickable again
-    },
-  });
-
-  const [requestAmount, setRequestAmount] = useState(10000);
-  const [requestReason, setRequestReason] = useState("");
-
-  const creditRequestMutation = useMutation({
-    mutationFn: () => requestCredits(requestAmount, requestReason),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["user-credit-requests"] });
-      showToast(`Requested $${requestAmount} credits successfully!`, "success");
-      setRequestAmount(10000);
-      setRequestReason("");
-    },
-    onError: (err: any) => {
-      showToast(err?.response?.data?.detail || "Failed to submit credit request.", "error");
-    }
-  });
-
-  const pData = portfolio.data;
-
-  return <div className="page-grid">
-    {toast && <Toast msg={toast.msg} type={toast.type} />}
-    <GlassCard className="wide">
-      <SectionTitle icon={<Briefcase />} title="Paper Trading Portfolio" />
-      <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 8 }}>Virtual portfolio starting at $100,000. All prices are real-time from Yahoo Finance.</p>
-      <div className="portfolio-summary">
-        <div><small>Cash Balance</small><strong style={{ color: "var(--accent-teal)" }}>${money(pData?.cash_balance)}</strong></div>
-        <div><small>Total Value</small><strong>${money(pData?.total_value)}</strong></div>
-        <div><small>Overall Return</small><PriceBadge value={pData?.total_return_pct} /></div>
-      </div>
-    </GlassCard>
-
-    <GlassCard>
-      <SectionTitle icon={<Activity />} title="Execute Trade" />
-      <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 8 }}>Enter a symbol, choose quantity and side. Prices are fetched live from market data.</p>
-      <div className="trade-form">
-        <input className="field" value={tradeSymbol} onChange={(e) => { setTradeSymbol(e.target.value.toUpperCase()); setTradeError(""); }} placeholder="Symbol (e.g. AAPL)" />
-        <input className="field" type="number" min="1" value={shares} onChange={(e) => setShares(Number(e.target.value))} placeholder="Shares" />
-        <select className="field" value={action} onChange={(e) => { setAction(e.target.value as "buy" | "sell"); setTradeError(""); }}>
-          <option value="buy">🟢 Buy</option>
-          <option value="sell">🔴 Sell</option>
-        </select>
-        <button className="primary-btn" onClick={() => trade.mutate()} disabled={trade.isPending || !tradeSymbol || shares <= 0}>
-          {trade.isPending ? "Executing..." : `Submit ${action === "buy" ? "Buy" : "Sell"} Order`}
-        </button>
-        {tradeError && <p className="inline-error">{tradeError}</p>}
-      </div>
-    </GlassCard>
-
-    <GlassCard className="wide">
-      <SectionTitle icon={<ListPlus />} title="Current Holdings" />
-      {pData?.positions?.length ? (
-        <table className="holdings-table">
-          <thead><tr><th>Symbol</th><th>Shares</th><th>Avg Cost</th><th>Mkt Price</th><th>Market Value</th><th>P&L</th><th>Return %</th></tr></thead>
-          <tbody>
-            {(pData.positions || []).map((pos: any) => (
-              <tr key={pos.symbol} style={{ cursor: "pointer" }} onClick={() => { setSymbol(pos.symbol); setView("stock"); }}>
-                <td><strong>{pos.symbol}</strong></td>
-                <td className="mono">{pos.shares}</td>
-                <td className="mono">${money(pos.average_cost)}</td>
-                <td className="mono">${money(pos.current_price)}</td>
-                <td className="mono">${money((pos.current_price ?? 0) * pos.shares)}</td>
-                <td className={`mono ${(pos.unrealized_pl ?? 0) >= 0 ? "positive" : "negative"}`}>${money(pos.unrealized_pl)}</td>
-                <td><PriceBadge value={pos.unrealized_pl_pct} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : <p style={{ color: "var(--text-muted)" }}>No open positions. Use the form above to place your first paper trade.</p>}
-    </GlassCard>
-
-    <GlassCard>
-      <SectionTitle icon={<Plus />} title="Request Simulation Credits" />
-      <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 8 }}>Need more credits? Submit a request for mock funding approval.</p>
-      <div className="trade-form">
-        <input className="field" type="number" min="1" value={requestAmount} onChange={(e) => setRequestAmount(Number(e.target.value))} placeholder="Amount ($)" />
-        <input className="field" value={requestReason} onChange={(e) => setRequestReason(e.target.value)} placeholder="Reason" />
-        <button className="primary-btn" onClick={() => creditRequestMutation.mutate()} disabled={creditRequestMutation.isPending || requestAmount <= 0} style={{ background: "linear-gradient(135deg, var(--accent-violet), var(--primary))" }}>
-          {creditRequestMutation.isPending ? "Submitting..." : "Request Credits"}
-        </button>
-      </div>
-    </GlassCard>
-
-    <GlassCard className="wide">
-      <SectionTitle icon={<History />} title="Recent Transactions" />
-      <div className="table">
-        {(transactions.data || []).slice(0, 10).map((t: any) => (
-           <div className="check" key={t.id}>
-             <span>{new Date(t.timestamp).toLocaleString()}</span>
-             <b>{t.action} {t.shares} {t.symbol} @ {money(t.price)}</b>
-           </div>
-        ))}
-      </div>
-    </GlassCard>
-
-    <GlassCard className="wide">
-      <SectionTitle icon={<CheckCircle />} title="My Credit Requests" />
-      {userRequests.isLoading ? (
-        <p style={{ color: "var(--text-muted)", padding: "10px 0" }}>Loading credit requests...</p>
-      ) : ((userRequests.data || []) as any[]).length === 0 ? (
-        <p style={{ color: "var(--text-muted)", padding: "10px 0" }}>No requests submitted yet.</p>
-      ) : (
-        <table className="holdings-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Amount</th>
-              <th>Reason</th>
-              <th>Status</th>
-              <th>Details / Action Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {((userRequests.data || []) as any[]).map((req: any) => (
-              <tr key={req.id}>
-                <td><strong>#{req.id}</strong></td>
-                <td className="mono">${money(req.amount)}</td>
-                <td>{req.reason || "None"}</td>
-                <td>
-                  <span className={`price-badge ${req.status === "approved" ? "positive" : req.status === "pending" ? "warning" : "negative"}`}>{req.status}</span>
-                </td>
-                <td style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                  {req.status === "rejected" && req.admin_note && `Reason: ${req.admin_note}`}
-                  {req.status === "approved" && (
-                    <>Approved on {new Date(req.approved_at || req.updated_at).toLocaleString()}{req.approved_by && ` by ${req.approved_by}`}</>
-                  )}
-                  {req.status === "pending" && "Pending administrative approval"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </GlassCard>
-  </div>;
-}
 
 
 

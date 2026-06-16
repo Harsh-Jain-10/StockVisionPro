@@ -175,38 +175,6 @@ class AlertHistoryItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class PortfolioItemResponse(BaseModel):
-    id: int
-    user_id: str
-    symbol: str
-    shares: float
-    average_price: float
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class PortfolioTradeRequest(BaseModel):
-    user_id: str
-    symbol: str
-    action: Literal["buy", "sell"]
-    shares: float
-    price: float | None = None
-
-
-class PortfolioTransactionResponse(BaseModel):
-    id: int
-    user_id: str
-    symbol: str
-    action: str
-    shares: float
-    price: float
-    timestamp: datetime
-
-    model_config = {"from_attributes": True}
-
-
 class BacktestRequest(BaseModel):
     symbol: str
     strategy: str
@@ -232,40 +200,3 @@ class BacktestResponse(BaseModel):
     win_rate_pct: float
     total_trades: int
     trades: list[BacktestTrade]
-
-
-
-
-
-class CreditRequestCreate(BaseModel):
-    amount: float
-    reason: str | None = None
-
-
-class CreditRejectRequest(BaseModel):
-    reason: str
-
-
-class CreditRequestResponse(BaseModel):
-    id: int
-    user_id: str
-    amount: float
-    reason: str | None = None
-    status: str
-    admin_note: str | None = None
-    approved_at: datetime | None = None
-    approved_by: str | None = None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class AdminSigninRequest(BaseModel):
-    email: str
-    password: str
-
-
-class AdminVerifyOtpRequest(BaseModel):
-    email: str
-    code: str
