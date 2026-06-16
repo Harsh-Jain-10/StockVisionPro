@@ -49,6 +49,15 @@ Now fully upgraded for cloud-ready enterprise deployment, the platform integrate
 - **Economic Calendar**: Keep track of High, Medium, and Low-impact macroeconomic events globally.
 - **Dark Mode**: Flawless CSS-variable-based theme toggles for night trading sessions.
 
+### 📱 V2 Premium Mobile & Responsive Design
+- **Tablet Layout (768px-1023px)**: Narrow collapsed sidebar view showing icons only, keeping core layout uncluttered.
+- **Mobile Experience (<768px)**: Completely hidden sidebar, replaced by a sticky 56px Mobile Header and fixed 68px Bottom Navigation bar with iOS/Android safe area support.
+- **Interactive Search**: Dynamic full-screen search modal with autocomplete, trending symbols, and `localStorage` search history persistence.
+- **Robinhood-Style Movers Card Layout**: Stacks and re-formats stock tables on mobile into a compact 2x2 grid (Symbol and Name on the left, Price and Change on the right).
+- **Responsive Chart Controls**: Implemented responsive heights and `touch-action: pan-y` rules to prevent layout breaking or scroll-locking on mobile touch inputs.
+- **Forecast Studio Mobile Reordering**: Orders sections to present AI Insights and News Correlation directly above charts on mobile.
+- **Desktop Guard**: Confines overrides strictly inside media queries, ensuring the Desktop view (1024px+) remains 100% untouched.
+
 ### 🛡️ Secure Admin Portal & Credit Desk
 - **Multi-Factor Admin Auth**: Dedicated `/admin/login` entry point with a 2-step verification flow: Master Password check and 6-digit Email OTP dispatched to `ADMIN_EMAIL` (independent of the user database).
 - **Pending Requests Management**: Centralized desk for approving or rejecting user simulation credit requests.
