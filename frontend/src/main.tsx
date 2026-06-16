@@ -91,527 +91,8 @@ function PriceBadge({ value }: { value?: number | null }) {
   return <span className={`price-badge ${positive ? "positive" : "negative"}`}>{pct(value)}</span>;
 }
 
-function LoginOverlay({ onLogin, onAdminPortal }: { onLogin: (uid: string, email: string, role: string) => void; onAdminPortal: () => void }) {
-  const [action, setAction] = useState<"signin" | "signup" | "reset_password">("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  // role is always "user" here — admin uses the separate Admin Portal
-  const role = "user";
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<1 | 2>(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [resendTimer, setResendTimer] = useState(0);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+// LoginOverlay component removed in V2.
 
-  const codeInputRef = useRef<HTMLInputElement>(null);
-
-  // Focus the code input when entering step 2
-  useEffect(() => {
-    if (step === 2) {
-      setTimeout(() => {
-        codeInputRef.current?.focus();
-      }, 100);
-    }
-  }, [step]);
-
-  // Tick the resend timer down
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const interval = setInterval(() => {
-      setResendTimer((t) => t - 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [resendTimer]);
-
-  function showLocalToast(msg: string, type: "success" | "error") {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  }
-
-  // Clean OTP input to numeric
-  function handleCodeChange(val: string) {
-    const numeric = val.replace(/[^0-9]/g, "").slice(0, 6);
-    setCode(numeric);
-  }
-
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = email.trim();
-    if (!trimmed) return;
-
-    // Regex email format check
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError("Please enter a valid email address (e.g. name@domain.com).");
-      showLocalToast("Invalid email address format.", "error");
-      return;
-    }
-
-    if (action === "signin") {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await signIn(trimmed, password);
-        if (res.success) {
-          if (res.token) {
-            sessionStorage.setItem("svp_token", res.token);
-          }
-          // Always store "user" role for standard login — admin uses Admin Portal
-          sessionStorage.setItem("svp_role", "user");
-          showLocalToast("Logged in successfully!", "success");
-          setTimeout(() => {
-            onLogin(res.user_id, res.email, "user");
-          }, 800);
-        } else {
-          const msg = res.message || "Failed to sign in.";
-          setError(msg);
-          showLocalToast(msg, "error");
-        }
-      } catch (err: any) {
-        const msg = err?.response?.data?.detail || "Invalid email or password.";
-        setError(msg);
-        showLocalToast(msg, "error");
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    // action === "signup" || action === "reset_password"
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    try {
-      const res = await sendOtp(trimmed, action, password, role);
-      if (res.success) {
-        setStep(2);
-        setResendTimer(60);
-        const codeSentMsg = action === "reset_password"
-          ? `Password reset verification code sent to ${trimmed}`
-          : `Verification code sent to ${trimmed}`;
-        showLocalToast(codeSentMsg, "success");
-      } else {
-        const msg = res.message || "Failed to send verification code.";
-        setError(msg);
-        showLocalToast(msg, "error");
-      }
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || "Failed to send code. Check credentials or connection.";
-      setError(msg);
-      showLocalToast(msg, "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    if (code.length < 6) {
-      setError("Please enter the complete 6-digit code.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const res = await verifyOtp(email.trim(), code, action);
-      if (res.success) {
-        if (res.token) {
-          sessionStorage.setItem("svp_token", res.token);
-        }
-        // Always store "user" role for standard auth — admin uses Admin Portal
-        sessionStorage.setItem("svp_role", "user");
-        const successMsg = action === "reset_password"
-          ? "Password reset and logged in successfully!"
-          : "Account created and logged in successfully!";
-        showLocalToast(successMsg, "success");
-        setTimeout(() => {
-          onLogin(res.user_id, res.email, "user");
-        }, 800);
-      } else {
-        const msg = res.message || "Invalid OTP code.";
-        setError(msg);
-        showLocalToast(msg, "error");
-      }
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || "Invalid code or verification error.";
-      setError(msg);
-      showLocalToast(msg, "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleResendOtp() {
-    if (resendTimer > 0 || loading) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await sendOtp(email.trim(), action, password, role);
-      if (res.success) {
-        setResendTimer(60);
-        showLocalToast("Verification code resent successfully!", "success");
-      } else {
-        const msg = res.message || "Failed to resend code.";
-        setError(msg);
-        showLocalToast(msg, "error");
-      }
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || "Failed to resend code.";
-      setError(msg);
-      showLocalToast(msg, "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // 6-digit block render
-  const codeArray = code.split("");
-  const digitBoxes = Array.from({ length: 6 }).map((_, idx) => {
-    const char = codeArray[idx] || "";
-    const isFocused = idx === codeArray.length && !loading;
-    return (
-      <div 
-        key={idx}
-        style={{
-          width: "clamp(34px, 9vw, 48px)",
-          height: "clamp(42px, 11vw, 56px)",
-          borderRadius: "10px",
-          border: isFocused ? "2px solid var(--primary)" : "1px solid var(--border)",
-          background: "var(--bg-surface)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "clamp(16px, 4.5vw, 22px)",
-          fontWeight: 700,
-          color: "var(--text-primary)",
-          boxShadow: isFocused ? "0 0 12px rgba(95, 125, 255, 0.25)" : "none",
-          transition: "all 0.15s ease",
-        }}
-      >
-        {char}
-        {isFocused && (
-          <motion.span 
-            animate={{ opacity: [0, 1, 0] }}
-            transition={{ repeat: Infinity, duration: 0.8 }}
-            style={{ width: "2px", height: "20px", background: "var(--primary)" }}
-          />
-        )}
-      </div>
-    );
-  });
-
-  return (
-    <div style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: "rgba(10, 15, 30, 0.72)",
-      backdropFilter: "blur(20px)",
-      zIndex: 9999,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "20px"
-    }}>
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-spin {
-          animation: spin 0.8s linear infinite;
-        }
-      `}</style>
-      <motion.div 
-        className="glass-card" 
-        style={{ width: "100%", maxWidth: "420px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px" }}
-        initial={{ opacity: 0, scale: 0.95, y: 15 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div style={{ display: "inline-flex", padding: "12px", borderRadius: "16px", background: "linear-gradient(135deg, var(--accent-violet), var(--primary))", color: "white", marginBottom: "16px" }}>
-            <Brain size={32} />
-          </div>
-          <h2 style={{ fontSize: "24px", fontWeight: 700, margin: "0 0 8px 0" }}>StockVision Pro</h2>
-          <p style={{ color: "var(--text-secondary)", fontSize: "14px", margin: 0 }}>AI-powered analytics desk for equities and index data.</p>
-        </div>
-
-        {step === 1 && action !== "reset_password" && (
-          <div style={{
-            display: "flex",
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "12px",
-            padding: "4px",
-            gap: "4px"
-          }}>
-            <button 
-              type="button"
-              disabled={loading}
-              onClick={() => { setAction("signin"); setError(""); }}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: "8px",
-                border: "none",
-                background: action === "signin" ? "linear-gradient(135deg, var(--accent-violet), var(--primary))" : "transparent",
-                color: action === "signin" ? "white" : "var(--text-secondary)",
-                fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                transition: "all 0.2s ease"
-              }}
-            >
-              Sign In
-            </button>
-            <button 
-              type="button"
-              disabled={loading}
-              onClick={() => { setAction("signup"); setError(""); }}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: "8px",
-                border: "none",
-                background: action === "signup" ? "linear-gradient(135deg, var(--accent-violet), var(--primary))" : "transparent",
-                color: action === "signup" ? "white" : "var(--text-secondary)",
-                fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                transition: "all 0.2s ease"
-              }}
-            >
-              Sign Up
-            </button>
-          </div>
-        )}
-
-        {step === 1 && action === "reset_password" && (
-          <div style={{ textAlign: "left" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: 700, margin: "0 0 4px 0", color: "var(--text-primary)" }}>Reset Password</h3>
-            <p style={{ color: "var(--text-secondary)", fontSize: "13px", margin: 0 }}>
-              Enter your registered email and a new password. We will email you a code to verify this change.
-            </p>
-          </div>
-        )}
-
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ 
-              opacity: 1, 
-              y: 0, 
-              scale: 1,
-              x: [0, -6, 6, -6, 6, 0]
-            }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            style={{ 
-              padding: "14px 16px", 
-              borderRadius: "12px", 
-              background: "rgba(255, 107, 138, 0.1)", 
-              border: "1px solid rgba(255, 107, 138, 0.25)", 
-              color: "#ff6b8a", 
-              fontSize: "13.5px", 
-              lineHeight: "1.45",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              boxShadow: "0 4px 12px rgba(255, 107, 138, 0.08)",
-              textAlign: "left"
-            }}
-          >
-            <AlertCircle size={18} style={{ flexShrink: 0 }} />
-            <div style={{ flexGrow: 1 }}>{error}</div>
-          </motion.div>
-        )}
-
-        {step === 1 ? (
-          <form onSubmit={handleSendOtp} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>Email Address</label>
-              <input 
-                type="email" 
-                className="field" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                placeholder="you@example.com"
-                required
-                disabled={loading}
-                autoFocus
-              />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)" }}>
-                {action === "reset_password" ? "New Password" : "Password"}
-              </label>
-              <input 
-                type="password" 
-                className="field" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                placeholder={action === "reset_password" ? "Enter new password (min. 6 chars)" : "Minimum 6 characters"}
-                required
-                disabled={loading}
-              />
-            </div>
-
-
-            
-            <button type="submit" className="primary-btn" disabled={loading} style={{ background: "linear-gradient(135deg, var(--accent-violet), var(--primary))", width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {loading ? (
-                <span style={{ display: "inline-flex", gap: "8px", alignItems: "center" }}>
-                  <svg className="animate-spin" style={{ width: 16, height: 16, border: "2px solid white", borderTopColor: "transparent", borderRadius: "50%" }} viewBox="0 0 24 24" />
-                  {action === "signin" ? "Signing In..." : "Sending Code..."}
-                </span>
-              ) : (
-                action === "signin" ? "Sign In with Password" : action === "reset_password" ? "Send Reset Code" : "Get Verification Code"
-              )}
-            </button>
-
-            {action === "signin" && (
-              <div style={{ textAlign: "right", marginTop: "-8px" }}>
-                <button
-                  type="button"
-                  onClick={() => { setAction("reset_password"); setError(""); setPassword(""); }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--primary)",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                    padding: 0
-                  }}
-                >
-                  Forgot Password?
-                </button>
-              </div>
-            )}
-
-            {action === "reset_password" && (
-              <div style={{ textAlign: "center", marginTop: "4px" }}>
-                <button
-                  type="button"
-                  onClick={() => { setAction("signin"); setError(""); setPassword(""); }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--primary)",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                    padding: 0
-                  }}
-                >
-                  Back to Sign In
-                </button>
-              </div>
-            )}
-            {/* Discreet Administrator Portal link — shown only on Sign In, never mixed with user controls */}
-            {action === "signin" && (
-              <div style={{ textAlign: "center", marginTop: "4px" }}>
-                <button
-                  type="button"
-                  onClick={onAdminPortal}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--text-muted)",
-                    fontSize: "11px",
-                    cursor: "pointer",
-                    padding: 0,
-                    opacity: 0.55,
-                    textDecoration: "underline",
-                    letterSpacing: "0.02em"
-                  }}
-                >
-                  Administrator Portal
-                </button>
-              </div>
-            )}
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyOtp} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-secondary)", textAlign: "center" }}>
-                We sent a 6-digit code to <strong>{email}</strong>
-              </label>
-              
-              {/* Digit Box Container */}
-              <div style={{ position: "relative", display: "flex", justifyContent: "space-between", gap: "clamp(4px, 1.5vw, 10px)", margin: "16px 0" }}>
-                {digitBoxes}
-                <input 
-                  type="text"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => handleCodeChange(e.target.value)}
-                  ref={codeInputRef}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    opacity: 0,
-                    width: "100%",
-                    cursor: "pointer",
-                    zIndex: 10
-                  }}
-                  placeholder=""
-                  autoFocus
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            
-            <button type="submit" className="primary-btn" disabled={loading} style={{ background: "linear-gradient(135deg, var(--accent-violet), var(--primary))", width: "100%", padding: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {loading ? (
-                <span style={{ display: "inline-flex", gap: "8px", alignItems: "center" }}>
-                  <svg className="animate-spin" style={{ width: 16, height: 16, border: "2px solid white", borderTopColor: "transparent", borderRadius: "50%" }} viewBox="0 0 24 24" />
-                  Verifying...
-                </span>
-              ) : (
-                "Verify & Enter"
-              )}
-            </button>
-            
-            <div style={{ textAlign: "center", marginTop: "8px" }}>
-              <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>Didn't receive the code? </span>
-              <button 
-                type="button" 
-                disabled={resendTimer > 0 || loading} 
-                onClick={handleResendOtp}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: resendTimer > 0 ? "var(--text-muted)" : "var(--primary)",
-                  fontWeight: 600,
-                  cursor: resendTimer > 0 ? "not-allowed" : "pointer",
-                  fontSize: "13px",
-                  textDecoration: resendTimer > 0 ? "none" : "underline"
-                }}
-              >
-                {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
-              </button>
-            </div>
-            
-            <button type="button" className="range-btn" onClick={() => { setStep(1); setError(""); }} style={{ width: "100%", height: "42px" }} disabled={loading}>
-              ← Change Details
-            </button>
-          </form>
-        )}
-      </motion.div>
-    </div>
-  );
-}
 
 
 function AvatarDropdown({ email, role, onLogout }: { email: string; role: string; onLogout: () => void }) {
@@ -630,7 +111,6 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
 
   const sessions = [
     { device: "Chrome / Windows", status: "Active Now", current: true },
-    { device: "StockVision Mobile", status: "2 hours ago", current: false },
   ];
 
   const initials = email ? email.split("@")[0].substring(0, 2).toUpperCase() : "US";
@@ -679,32 +159,6 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
               ))}
             </div>
           </div>
-
-          <button
-            onClick={onLogout}
-            style={{
-              marginTop: "4px",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid rgba(255, 107, 138, 0.3)",
-              background: "rgba(255, 107, 138, 0.1)",
-              color: "var(--accent-rose)",
-              fontWeight: 700,
-              fontSize: "12px",
-              textAlign: "center",
-              transition: "all 0.2s",
-              width: "100%",
-              cursor: "pointer",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "rgba(255, 107, 138, 0.2)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "rgba(255, 107, 138, 0.1)";
-            }}
-          >
-            Log Out Session
-          </button>
         </div>
       )}
 
@@ -747,7 +201,7 @@ function AvatarDropdown({ email, role, onLogout }: { email: string; role: string
             {email.split("@")[0]}
           </div>
           <div style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "capitalize" }}>
-            {role === "admin" ? "Admin Account" : "Trader Account"}  {/* role comes from JWT via sessionStorage */}
+            Local Workspace
           </div>
         </div>
         <div style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", color: "var(--text-muted)", fontSize: "10px" }}>
@@ -1158,13 +612,10 @@ function AppShell() {
 
   const [view, setView] = useState<View>("dashboard");
   const [symbol, setSymbol] = useState("AAPL");
-  const [userId, setUserId] = useState(() => sessionStorage.getItem("svp_user_id") || "");
-  const [userEmail, setUserEmail] = useState(() => sessionStorage.getItem("svp_user_email") || "");
-  // User role is always "user" for standard accounts — "admin" only valid in admin session
-  const [userRole, setUserRole] = useState(() => {
-    const r = sessionStorage.getItem("svp_role") || "user";
-    return r === "admin" ? "user" : r;  // Guard: never allow admin role in user session
-  });
+  const [userId, setUserId] = useState("local_user");
+  const [userEmail, setUserEmail] = useState("local_user@stockvision.pro");
+  // User role is always "user" for standard accounts
+  const [userRole, setUserRole] = useState("user");
 
   const [adminToken, setAdminToken] = useState(() => sessionStorage.getItem("svp_admin_token") || "");
   const [adminEmail, setAdminEmail] = useState(() => sessionStorage.getItem("svp_admin_email") || "");
@@ -1172,9 +623,6 @@ function AppShell() {
   const qc = useQueryClient();
 
   function handleLogin(uid: string, email: string, role: string) {
-    sessionStorage.setItem("svp_user_id", uid);
-    sessionStorage.setItem("svp_user_email", email);
-    sessionStorage.setItem("svp_role", role);
     setUserId(uid);
     setUserEmail(email);
     setUserRole(role);
@@ -1182,13 +630,6 @@ function AppShell() {
   }
 
   function handleLogout() {
-    sessionStorage.removeItem("svp_user_id");
-    sessionStorage.removeItem("svp_user_email");
-    sessionStorage.removeItem("svp_role");
-    sessionStorage.removeItem("svp_token");
-    setUserId("");
-    setUserEmail("");
-    setUserRole("user");
     qc.invalidateQueries();
   }
 
@@ -1212,35 +653,6 @@ function AppShell() {
     navigate("/admin/login");
   }
 
-  // Auto logout on inactivity (10 minutes)
-  useEffect(() => {
-    if (!userId) return;
-    const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
-    let timerId: any;
-
-    const resetTimer = () => {
-      if (timerId) clearTimeout(timerId);
-      timerId = setTimeout(() => {
-        handleLogout();
-        alert("You have been automatically logged out due to inactivity.");
-      }, INACTIVITY_TIMEOUT);
-    };
-
-    const activityEvents = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
-    activityEvents.forEach((event) => {
-      document.addEventListener(event, resetTimer, true);
-    });
-
-    resetTimer();
-
-    return () => {
-      if (timerId) clearTimeout(timerId);
-      activityEvents.forEach((event) => {
-        document.removeEventListener(event, resetTimer, true);
-      });
-    };
-  }, [userId]);
-
   // Enforce secure routing for admin pages (Rule of Hooks compliant)
   useEffect(() => {
     const isAdPath = currentPath.startsWith("/admin");
@@ -1261,9 +673,9 @@ function AppShell() {
 
   // These hooks MUST be called unconditionally (Rules of Hooks).
   // We disable them on admin paths using the `enabled` flag.
-  const overview = useQuery({ queryKey: ["overview"], queryFn: getMarketOverview, enabled: !!userId && !isAdminPath });
+  const overview = useQuery({ queryKey: ["overview"], queryFn: getMarketOverview, enabled: !isAdminPath });
   const fallbackTicker = (overview.data?.indices || []) as Quote[];
-  const live = useLiveQuotes(!isAdminPath && !!userId ? ["^GSPC", "^IXIC", "^DJI", "^NSEI", "^BSESN", "GLD", "BTC-USD", symbol] : []);
+  const live = useLiveQuotes(!isAdminPath ? ["^GSPC", "^IXIC", "^DJI", "^NSEI", "^BSESN", "GLD", "BTC-USD", symbol] : []);
   const ticker = live.quotes.length ? live.quotes : fallbackTicker;
 
   // ── Admin Portal routing ──────────────────────────────────────────────────
@@ -1281,11 +693,6 @@ function AppShell() {
     }
 
     return <AdminDashboard email={adminEmail} onLogout={handleAdminLogout} />;
-  }
-
-  // ── User Portal routing ───────────────────────────────────────────────────
-  if (!userId) {
-    return <LoginOverlay onLogin={handleLogin} onAdminPortal={() => navigate("/admin/login")} />;
   }
 
   return (
