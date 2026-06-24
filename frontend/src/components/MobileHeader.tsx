@@ -18,7 +18,7 @@ export type View =
 
 interface MobileHeaderProps {
   currentView: View;
-  setView: (view: any) => void;
+  setView: (view: View) => void;
   onSearchClick: () => void;
   isDark: boolean;
   onThemeToggle: () => void;

@@ -18,7 +18,7 @@ export type View =
 
 interface MobileBottomNavProps {
   currentView: View;
-  setView: (view: any) => void;
+  setView: (view: View) => void;
 }
 
 export default function MobileBottomNav({ currentView, setView }: MobileBottomNavProps) {
