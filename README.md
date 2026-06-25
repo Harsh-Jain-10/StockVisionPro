@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/Harsh-Jain-10/StockVisionPro">
-    <img src="banner.svg?v=2" alt="StockVision Pro Banner" width="100%" style="border-radius: 16px;" />
+    <img src="banner_v2.svg" alt="StockVision Pro Banner" width="100%" style="border-radius: 16px;" />
   </a>
 
   <br /><br />

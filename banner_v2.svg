@@ -79,20 +79,30 @@
       fill: #10b981;
     }
     
-    /* 5-Group Sequential Opacity Loop (20 seconds total) */
+    /* 5-Group Sequential Opacity Loop (20 seconds total) with clean default states */
     .ticker-group-1 {
+      opacity: 1;
+      visibility: visible;
       animation: cycle-fade-1 20s infinite ease-in-out;
     }
     .ticker-group-2 {
+      opacity: 0;
+      visibility: hidden;
       animation: cycle-fade-2 20s infinite ease-in-out;
     }
     .ticker-group-3 {
+      opacity: 0;
+      visibility: hidden;
       animation: cycle-fade-3 20s infinite ease-in-out;
     }
     .ticker-group-4 {
+      opacity: 0;
+      visibility: hidden;
       animation: cycle-fade-4 20s infinite ease-in-out;
     }
     .ticker-group-5 {
+      opacity: 0;
+      visibility: hidden;
       animation: cycle-fade-5 20s infinite ease-in-out;
     }
 
