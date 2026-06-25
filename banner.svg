@@ -79,22 +79,47 @@
       fill: #10b981;
     }
     
-    /* Animations */
+    /* 5-Group Sequential Opacity Loop (20 seconds total) */
     .ticker-group-1 {
-      animation: alt-fade-1 8s infinite ease-in-out;
+      animation: cycle-fade-1 20s infinite ease-in-out;
     }
     .ticker-group-2 {
-      animation: alt-fade-2 8s infinite ease-in-out;
+      animation: cycle-fade-2 20s infinite ease-in-out;
     }
-    @keyframes alt-fade-1 {
-      0%, 45% { opacity: 1; color: #ffffff; }
-      50%, 95% { opacity: 0; }
-      100% { opacity: 1; }
+    .ticker-group-3 {
+      animation: cycle-fade-3 20s infinite ease-in-out;
     }
-    @keyframes alt-fade-2 {
-      0%, 45% { opacity: 0; }
-      50%, 95% { opacity: 1; color: #ffffff; }
-      100% { opacity: 0; }
+    .ticker-group-4 {
+      animation: cycle-fade-4 20s infinite ease-in-out;
+    }
+    .ticker-group-5 {
+      animation: cycle-fade-5 20s infinite ease-in-out;
+    }
+
+    @keyframes cycle-fade-1 {
+      0%, 16% { opacity: 1; visibility: visible; }
+      20%, 96% { opacity: 0; visibility: hidden; }
+      100% { opacity: 1; visibility: visible; }
+    }
+    @keyframes cycle-fade-2 {
+      0%, 16% { opacity: 0; visibility: hidden; }
+      20%, 36% { opacity: 1; visibility: visible; }
+      40%, 100% { opacity: 0; visibility: hidden; }
+    }
+    @keyframes cycle-fade-3 {
+      0%, 36% { opacity: 0; visibility: hidden; }
+      40%, 56% { opacity: 1; visibility: visible; }
+      60%, 100% { opacity: 0; visibility: hidden; }
+    }
+    @keyframes cycle-fade-4 {
+      0%, 56% { opacity: 0; visibility: hidden; }
+      60%, 76% { opacity: 1; visibility: visible; }
+      80%, 100% { opacity: 0; visibility: hidden; }
+    }
+    @keyframes cycle-fade-5 {
+      0%, 76% { opacity: 0; visibility: hidden; }
+      80%, 96% { opacity: 1; visibility: visible; }
+      100% { opacity: 0; visibility: hidden; }
     }
     
     .live-dot {
@@ -159,19 +184,16 @@
 
   <!-- Ticker Group 1 (AAPL, NVDA, BTC) -->
   <g class="ticker-group-1" transform="translate(570, 75)">
-    <!-- AAPL -->
     <g transform="translate(0, 0)">
       <text x="0" y="0" fill="#e2e8f0" class="ticker-text">AAPL</text>
       <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $189.84</text>
       <text x="160" y="0" fill="#10b981" class="ticker-text">+1.24%</text>
     </g>
-    <!-- NVDA -->
     <g transform="translate(0, 30)">
       <text x="0" y="0" fill="#e2e8f0" class="ticker-text">NVDA</text>
       <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $942.30</text>
       <text x="160" y="0" fill="#10b981" class="ticker-text">+3.85%</text>
     </g>
-    <!-- BTC-USD -->
     <g transform="translate(0, 60)">
       <text x="0" y="0" fill="#e2e8f0" class="ticker-text">BTC-USD</text>
       <text x="75" y="0" fill="#ef4444" class="ticker-text">▼ $67,420</text>
@@ -181,23 +203,77 @@
 
   <!-- Ticker Group 2 (NIFTY 50, RELIANCE, MSFT) -->
   <g class="ticker-group-2" transform="translate(570, 75)">
-    <!-- NIFTY 50 -->
     <g transform="translate(0, 0)">
       <text x="0" y="0" fill="#e2e8f0" class="ticker-text">NIFTY 50</text>
       <text x="75" y="0" fill="#10b981" class="ticker-text">▲ 23,540</text>
       <text x="160" y="0" fill="#10b981" class="ticker-text">+0.78%</text>
     </g>
-    <!-- RELIANCE -->
     <g transform="translate(0, 30)">
       <text x="0" y="0" fill="#e2e8f0" class="ticker-text">RELIANCE</text>
       <text x="75" y="0" fill="#10b981" class="ticker-text">▲ ₹2,950.4</text>
       <text x="160" y="0" fill="#10b981" class="ticker-text">+2.15%</text>
     </g>
-    <!-- MSFT -->
     <g transform="translate(0, 60)">
       <text x="0" y="0" fill="#e2e8f0" class="ticker-text">MSFT</text>
       <text x="75" y="0" fill="#ef4444" class="ticker-text">▼ $421.90</text>
       <text x="160" y="0" fill="#ef4444" class="ticker-text">-0.14%</text>
+    </g>
+  </g>
+
+  <!-- Ticker Group 3 (TSLA, ETH, AMZN) -->
+  <g class="ticker-group-3" transform="translate(570, 75)">
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">TSLA</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $177.46</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+2.56%</text>
+    </g>
+    <g transform="translate(0, 30)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">ETH-USD</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $3,512.8</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+1.84%</text>
+    </g>
+    <g transform="translate(0, 60)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">AMZN</text>
+      <text x="75" y="0" fill="#ef4444" class="ticker-text">▼ $182.15</text>
+      <text x="160" y="0" fill="#ef4444" class="ticker-text">-0.45%</text>
+    </g>
+  </g>
+
+  <!-- Ticker Group 4 (GOOGL, COIN, META) -->
+  <g class="ticker-group-4" transform="translate(570, 75)">
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">GOOGL</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $173.96</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+0.82%</text>
+    </g>
+    <g transform="translate(0, 30)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">COIN</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $242.18</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+4.12%</text>
+    </g>
+    <g transform="translate(0, 60)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">META</text>
+      <text x="75" y="0" fill="#ef4444" class="ticker-text">▼ $498.80</text>
+      <text x="160" y="0" fill="#ef4444" class="ticker-text">-1.10%</text>
+    </g>
+  </g>
+
+  <!-- Ticker Group 5 (TATASTEEL, AMD, NFLX) -->
+  <g class="ticker-group-5" transform="translate(570, 75)">
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">TATASTEEL</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ ₹164.20</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+1.45%</text>
+    </g>
+    <g transform="translate(0, 30)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">AMD</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $160.22</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+2.94%</text>
+    </g>
+    <g transform="translate(0, 60)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">NFLX</text>
+      <text x="75" y="0" fill="#ef4444" class="ticker-text">▼ $610.50</text>
+      <text x="160" y="0" fill="#ef4444" class="ticker-text">-0.54%</text>
     </g>
   </g>
 
