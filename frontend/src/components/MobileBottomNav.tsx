@@ -22,7 +22,7 @@ interface MobileBottomNavProps {
 }
 
 export default function MobileBottomNav({ currentView, setView }: MobileBottomNavProps) {
-  const tabs = [
+  const tabs: { id: View; label: string; icon: React.ReactNode }[] = [
     { id: "dashboard", label: "Dashboard", icon: <Gauge size={20} /> },
     { id: "forecast", label: "Forecast", icon: <Brain size={20} /> },
     { id: "signals", label: "Signals", icon: <Activity size={20} /> },
