@@ -1,6 +1,9 @@
 <div align="center">
-  <h1>📈 StockVision Pro</h1>
-  <p><strong>Real markets. Real intelligence. Real edge.</strong></p>
+  <a href="https://github.com/Harsh-Jain-10/StockVisionPro">
+    <img src="banner.svg" alt="StockVision Pro Banner" width="100%" style="border-radius: 16px;" />
+  </a>
+
+  <br /><br />
 
   [![React](https://img.shields.io/badge/React-18-blue.svg?style=for-the-badge&logo=react)](https://reactjs.org/)
   [![Vite](https://img.shields.io/badge/Vite-5-purple.svg?style=for-the-badge&logo=vite)](https://vitejs.dev/)

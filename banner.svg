@@ -1,0 +1,208 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="100%" height="300" style="background:#07080f; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#12162b"/>
+      <stop offset="100%" stop-color="#07080e"/>
+    </radialGradient>
+    
+    <!-- Text/Title Gradient -->
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00ffcc"/>
+      <stop offset="50%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+
+    <!-- Line Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Chart Area Gradient -->
+    <linearGradient id="areaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00ffcc" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#00ffcc" stop-opacity="0.0"/>
+    </linearGradient>
+
+    <!-- Secondary Line Gradient -->
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4f6ef7"/>
+      <stop offset="100%" stop-color="#00ffcc"/>
+    </linearGradient>
+  </defs>
+
+  <style>
+    .grid-line {
+      stroke: rgba(79, 110, 247, 0.08);
+      stroke-width: 1;
+    }
+    .accent-dot {
+      fill: rgba(0, 255, 204, 0.4);
+    }
+    .chart-line {
+      stroke: url(#lineGrad);
+      stroke-width: 3;
+      stroke-linecap: round;
+      fill: none;
+      filter: url(#glow);
+    }
+    .chart-area {
+      fill: url(#areaGrad);
+    }
+    .title-text {
+      font-family: 'Outfit', 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-weight: 800;
+      fill: url(#textGrad);
+      letter-spacing: 2px;
+    }
+    .subtitle-text {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-weight: 600;
+      font-size: 11px;
+      fill: #94a3b8;
+      letter-spacing: 3px;
+    }
+    .ticker-text {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .status-text {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      fill: #10b981;
+    }
+    
+    /* Animations */
+    .ticker-group-1 {
+      animation: alt-fade-1 8s infinite ease-in-out;
+    }
+    .ticker-group-2 {
+      animation: alt-fade-2 8s infinite ease-in-out;
+    }
+    @keyframes alt-fade-1 {
+      0%, 45% { opacity: 1; color: #ffffff; }
+      50%, 95% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    @keyframes alt-fade-2 {
+      0%, 45% { opacity: 0; }
+      50%, 95% { opacity: 1; color: #ffffff; }
+      100% { opacity: 0; }
+    }
+    
+    .live-dot {
+      animation: blink 1.5s infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 0.3; r: 3; }
+      50% { opacity: 1; r: 5; }
+    }
+  </style>
+
+  <!-- Background -->
+  <rect width="800" height="300" fill="url(#bgGrad)" />
+
+  <!-- Grid Lines -->
+  <!-- Horizontal Grid -->
+  <line x1="0" y1="60" x2="800" y2="60" class="grid-line" />
+  <line x1="0" y1="120" x2="800" y2="120" class="grid-line" />
+  <line x1="0" y1="180" x2="800" y2="180" class="grid-line" />
+  <line x1="0" y1="240" x2="800" y2="240" class="grid-line" />
+  
+  <!-- Vertical Grid -->
+  <line x1="100" y1="0" x2="100" y2="300" class="grid-line" />
+  <line x1="200" y1="0" x2="200" y2="300" class="grid-line" />
+  <line x1="300" y1="0" x2="300" y2="300" class="grid-line" />
+  <line x1="400" y1="0" x2="400" y2="300" class="grid-line" />
+  <line x1="500" y1="0" x2="500" y2="300" class="grid-line" />
+  <line x1="600" y1="0" x2="600" y2="300" class="grid-line" />
+  <line x1="700" y1="0" x2="700" y2="300" class="grid-line" />
+
+  <!-- Accent dots at intersections -->
+  <circle cx="200" cy="120" r="2" class="accent-dot" />
+  <circle cx="400" cy="180" r="2" class="accent-dot" />
+  <circle cx="600" cy="60" r="2" class="accent-dot" />
+  <circle cx="300" cy="240" r="2" class="accent-dot" />
+  <circle cx="500" cy="120" r="2" class="accent-dot" />
+
+  <!-- Chart Area Fill under the path -->
+  <path d="M 50 220 C 150 200, 200 250, 300 180 C 400 110, 450 220, 550 130 C 650 40, 700 120, 750 90 L 750 300 L 50 300 Z" class="chart-area" />
+
+  <!-- Chart Line -->
+  <path d="M 50 220 C 150 200, 200 250, 300 180 C 400 110, 450 220, 550 130 C 650 40, 700 120, 750 90" class="chart-line" />
+
+  <!-- Pulsing Dot Tracking the Path -->
+  <circle fill="#00ffcc" filter="url(#glow)">
+    <animateMotion dur="8s" repeatCount="indefinite" path="M 50 220 C 150 200, 200 250, 300 180 C 400 110, 450 220, 550 130 C 650 40, 700 120, 750 90" />
+    <animate attributeName="r" values="4;7;4" dur="2s" repeatCount="indefinite" />
+  </circle>
+
+  <!-- Left Side: Title and Subtitle -->
+  <g transform="translate(50, 65)">
+    <text x="0" y="0" class="title-text" font-size="34">StockVision Pro</text>
+    <text x="0" y="28" class="subtitle-text">REAL MARKETS. REAL INTELLIGENCE. REAL EDGE.</text>
+  </g>
+
+  <!-- Right Side: Status and Rotating Tickers -->
+  <!-- Live status -->
+  <g transform="translate(570, 45)">
+    <circle cx="0" cy="-4" r="4" fill="#10b981" class="live-dot" />
+    <text x="12" y="0" class="status-text">LIVE STREAM ACTIVE</text>
+  </g>
+
+  <!-- Ticker Group 1 (AAPL, NVDA, BTC) -->
+  <g class="ticker-group-1" transform="translate(570, 75)">
+    <!-- AAPL -->
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">AAPL</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $189.84</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+1.24%</text>
+    </g>
+    <!-- NVDA -->
+    <g transform="translate(0, 30)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">NVDA</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ $942.30</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+3.85%</text>
+    </g>
+    <!-- BTC-USD -->
+    <g transform="translate(0, 60)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">BTC-USD</text>
+      <text x="75" y="0" fill="#ef4444" class="ticker-text">▼ $67,420</text>
+      <text x="160" y="0" fill="#ef4444" class="ticker-text">-0.92%</text>
+    </g>
+  </g>
+
+  <!-- Ticker Group 2 (NIFTY 50, RELIANCE, MSFT) -->
+  <g class="ticker-group-2" transform="translate(570, 75)">
+    <!-- NIFTY 50 -->
+    <g transform="translate(0, 0)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">NIFTY 50</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ 23,540</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+0.78%</text>
+    </g>
+    <!-- RELIANCE -->
+    <g transform="translate(0, 30)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">RELIANCE</text>
+      <text x="75" y="0" fill="#10b981" class="ticker-text">▲ ₹2,950.4</text>
+      <text x="160" y="0" fill="#10b981" class="ticker-text">+2.15%</text>
+    </g>
+    <!-- MSFT -->
+    <g transform="translate(0, 60)">
+      <text x="0" y="0" fill="#e2e8f0" class="ticker-text">MSFT</text>
+      <text x="75" y="0" fill="#ef4444" class="ticker-text">▼ $421.90</text>
+      <text x="160" y="0" fill="#ef4444" class="ticker-text">-0.14%</text>
+    </g>
+  </g>
+
+  <!-- Dynamic scanline overlay -->
+  <rect width="800" height="2" fill="rgba(0, 255, 204, 0.15)">
+    <animate attributeName="y" values="0;300;0" dur="10s" repeatCount="indefinite" />
+  </rect>
+</svg>
