@@ -123,14 +123,6 @@ async def check_alerts_loop() -> None:
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
-    
-    admin_pw = os.getenv("ADMIN_PASSWORD")
-    if not admin_pw or not admin_pw.strip():
-        print("\n" + "!"*70)
-        print("WARNING: ADMIN_PASSWORD is not configured in environment!")
-        print("Admin Portal sign in will not be functional until configured in .env")
-        print("!"*70 + "\n")
-        
     asyncio.create_task(check_alerts_loop())
 
 
