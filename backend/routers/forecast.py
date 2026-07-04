@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/api/forecast", tags=["forecast"])
 
 class ForecastRunRequest(BaseModel):
     symbol: str
-    model: str
+    model: Optional[str] = None
     horizon: int = 30
 
 def update_opportunities_in_background():
@@ -97,18 +98,19 @@ def run_forecast(payload: ForecastRunRequest, db: Session = Depends(get_db)):
         
         # Save predictions in database to track accuracy history
         from sqlalchemy import select
+        actual_model = res.get("selected_model", payload.model) or "seasonal_trend"
         for f in res["forecast"]:
             # Check if there is already an entry for this symbol, model, and date
             q = select(SavedForecast).where(
                 SavedForecast.symbol == symbol,
-                SavedForecast.model == payload.model,
+                SavedForecast.model == actual_model,
                 SavedForecast.forecast_date == f["date"]
             )
             existing = db.scalar(q)
             if not existing:
                 entry = SavedForecast(
                     symbol=symbol,
-                    model=payload.model,
+                    model=actual_model,
                     forecast_date=f["date"],
                     predicted_price=f["base"]
                 )

@@ -8,6 +8,9 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sqlalchemy.orm import Session
+from ta.momentum import RSIIndicator
+from ta.trend import MACD
+from ta.volatility import BollingerBands
 
 class SeasonalTrendRegressor:
     """
@@ -67,7 +70,7 @@ class SeasonalTrendRegressor:
         return y_pred
 
 
-def get_features_for_index(prices_series, idx, lag_days=[1, 2, 3, 5, 10], rolling_days=[5, 10]):
+def get_features_for_index(prices_series, idx, lag_days=[1, 2, 3, 5, 10], rolling_days=[5, 10], rsi_val=None, macd_val=None, bb_val=None):
     feats = []
     for lag in lag_days:
         feats.append(prices_series[idx - lag + 1])
@@ -75,7 +78,60 @@ def get_features_for_index(prices_series, idx, lag_days=[1, 2, 3, 5, 10], rollin
         window = prices_series[idx - roll + 1 : idx + 1]
         feats.append(np.mean(window))
         feats.append(np.std(window) + 1e-8)
+        
+    if rsi_val is not None:
+        feats.append(rsi_val)
+    if macd_val is not None:
+        feats.append(macd_val)
+    if bb_val is not None:
+        feats.append(bb_val)
+        
     return np.array(feats)
+
+
+def get_latest_indicators(prices_list):
+    """
+    Computes the latest RSI(14), MACD diff, and Bollinger Band width for a list of prices
+    using a safe window slice to avoid NaN/inf and ensure high performance.
+    """
+    n = len(prices_list)
+    if n < 40:
+        return 50.0, 0.0, 0.0  # safe default values
+        
+    # Take the last 60 prices as a window to compute indicators efficiently
+    window = prices_list[-60:]
+    series = pd.Series(window)
+    
+    # RSI
+    try:
+        rsi_indicator = RSIIndicator(series, window=14)
+        rsi_val = rsi_indicator.rsi().iloc[-1]
+    except Exception:
+        rsi_val = 50.0
+        
+    # MACD
+    try:
+        macd_indicator = MACD(series, window_slow=26, window_fast=12, window_sign=9)
+        macd_diff = macd_indicator.macd_diff().iloc[-1]
+    except Exception:
+        macd_diff = 0.0
+        
+    # Bollinger Bands
+    try:
+        bb_indicator = BollingerBands(series, window=20, window_dev=2)
+        bb_width = bb_indicator.bollinger_wband().iloc[-1]
+    except Exception:
+        bb_width = 0.0
+        
+    # NaN/inf guards
+    if np.isnan(rsi_val) or np.isinf(rsi_val):
+        rsi_val = 50.0
+    if np.isnan(macd_diff) or np.isinf(macd_diff):
+        macd_diff = 0.0
+    if np.isnan(bb_width) or np.isinf(bb_width):
+        bb_width = 0.0
+        
+    return float(rsi_val), float(macd_diff), float(bb_width)
 
 
 def generate_insights(symbol: str, current_price: float, forecast_price: float, metrics: dict, horizon: int) -> dict:
@@ -393,14 +449,112 @@ def generate_technical_signal(df: pd.DataFrame) -> dict:
     }
 
 
-def train_and_forecast(df: pd.DataFrame, model_type: str, horizon: int, db: Session | None = None) -> dict:
+def select_best_model(df: pd.DataFrame) -> str:
+    """
+    Evaluates all 4 forecasting models using validation MAPE (80/20 train/validation split)
+    and returns the name of the model with the lowest validation MAPE.
+    Uses one-step price reconstruction anchored on actual previous prices for log-return models.
+    """
+    df = df.sort_values(by="Date").reset_index(drop=True)
+    prices = df["Close"].to_numpy(dtype=float)
+    N = len(prices)
+    if N < 40:
+        raise ValueError(f"Insufficient historical data points ({N}). At least 40 are required for model training.")
+
+    candidate_mapes = {}
+
+    # 1. Seasonal Trend
+    try:
+        t = np.arange(N, dtype=float)
+        split_idx_st = int(N * 0.8)
+        st_model = SeasonalTrendRegressor()
+        st_model.fit(t[:split_idx_st], prices[:split_idx_st])
+        st_test_preds = st_model.predict(t[split_idx_st:])
+        st_metrics = calculate_metrics(prices[split_idx_st:], st_test_preds)
+        candidate_mapes["seasonal_trend"] = st_metrics["mape"]
+    except Exception as e:
+        print(f"[Model Selector] Seasonal trend validation failed: {e}")
+        candidate_mapes["seasonal_trend"] = float("inf")
+
+    # Prep for sklearn models
+    try:
+        prices_series_pd = pd.Series(prices)
+        rsi_vals = RSIIndicator(prices_series_pd, window=14).rsi().to_numpy()
+        macd_diff_vals = MACD(prices_series_pd, window_slow=26, window_fast=12, window_sign=9).macd_diff().to_numpy()
+        bb_width_vals = BollingerBands(prices_series_pd, window=20, window_dev=2).bollinger_wband().to_numpy()
+        
+        rsi_vals = np.nan_to_num(rsi_vals, nan=50.0)
+        macd_diff_vals = np.nan_to_num(macd_diff_vals, nan=0.0)
+        bb_width_vals = np.nan_to_num(bb_width_vals, nan=0.0)
+
+        X_all = []
+        y_all = []
+        for idx in range(35, N - 1):
+            X_all.append(
+                get_features_for_index(
+                    prices, 
+                    idx, 
+                    rsi_val=rsi_vals[idx], 
+                    macd_val=macd_diff_vals[idx], 
+                    bb_val=bb_width_vals[idx]
+                )
+            )
+            y_all.append(np.log(prices[idx + 1] / prices[idx]))
+            
+        X_all = np.array(X_all)
+        y_all = np.array(y_all)
+        
+        M = len(X_all)
+        split_idx_sk = int(M * 0.8)
+        
+        # Candidate Sklearn models
+        sklearn_models = {
+            "random_forest": lambda: RandomForestRegressor(n_estimators=50, random_state=42),
+            "gradient_boosting": lambda: GradientBoostingRegressor(n_estimators=50, random_state=42),
+            "neural_network": lambda: MLPRegressor(hidden_layer_sizes=(64, 32), max_iter=500, random_state=42)
+        }
+
+        for model_name, reg_func in sklearn_models.items():
+            try:
+                reg_test = reg_func()
+                reg_test.fit(X_all[:split_idx_sk], y_all[:split_idx_sk])
+                test_preds = reg_test.predict(X_all[split_idx_sk:])
+                
+                # Convert to raw price space using one-step prediction anchored on actual previous price
+                test_prices_true = prices[split_idx_sk + 36 :]
+                test_prices_pred = prices[split_idx_sk + 35 : -1] * np.exp(test_preds)
+                
+                metrics = calculate_metrics(test_prices_true, test_prices_pred)
+                candidate_mapes[model_name] = metrics["mape"]
+            except Exception as e:
+                print(f"[Model Selector] {model_name} validation failed: {e}")
+                candidate_mapes[model_name] = float("inf")
+    except Exception as e:
+        print(f"[Model Selector] Sklearn preparation failed: {e}")
+        for m in ["random_forest", "gradient_boosting", "neural_network"]:
+            candidate_mapes[m] = float("inf")
+
+    # Select the model with the minimum validation MAPE
+    best_model = min(candidate_mapes, key=candidate_mapes.get)
+    # Safe fallback if all failed
+    if candidate_mapes[best_model] == float("inf"):
+        best_model = "seasonal_trend"
+        
+    print(f"[Model Selector] Evaluated MAPEs: {candidate_mapes} | Best model: {best_model}")
+    return best_model
+
+
+def train_and_forecast(df: pd.DataFrame, model_type: str | None, horizon: int, db: Session | None = None) -> dict:
+    if model_type is None or model_type == "auto":
+        model_type = select_best_model(df)
+        
     df = df.sort_values(by="Date").reset_index(drop=True)
     prices = df["Close"].to_numpy(dtype=float)
     dates = df["Date"].tolist()
     
     N = len(prices)
-    if N < 20:
-        raise ValueError(f"Insufficient historical data points ({N}). At least 20 are required for model training.")
+    if N < 40:
+        raise ValueError(f"Insufficient historical data points ({N}). At least 40 are required for model training.")
 
     # 1. Fit & Forecast using custom SeasonalTrendRegressor (if selected)
     if model_type == "seasonal_trend":
@@ -423,11 +577,30 @@ def train_and_forecast(df: pd.DataFrame, model_type: str, horizon: int, db: Sess
         
     # 2. Fit & Forecast using Scikit-Learn models
     else:
+        # Compute indicators for the entire price series at once for training efficiency
+        prices_series_pd = pd.Series(prices)
+        rsi_vals = RSIIndicator(prices_series_pd, window=14).rsi().to_numpy()
+        macd_diff_vals = MACD(prices_series_pd, window_slow=26, window_fast=12, window_sign=9).macd_diff().to_numpy()
+        bb_width_vals = BollingerBands(prices_series_pd, window=20, window_dev=2).bollinger_wband().to_numpy()
+        
+        # Replace NaN values with safe defaults to prevent any training crash
+        rsi_vals = np.nan_to_num(rsi_vals, nan=50.0)
+        macd_diff_vals = np.nan_to_num(macd_diff_vals, nan=0.0)
+        bb_width_vals = np.nan_to_num(bb_width_vals, nan=0.0)
+
         X_all = []
         y_all = []
-        for idx in range(10, N - 1):
-            X_all.append(get_features_for_index(prices, idx))
-            y_all.append(prices[idx + 1])
+        for idx in range(35, N - 1):
+            X_all.append(
+                get_features_for_index(
+                    prices, 
+                    idx, 
+                    rsi_val=rsi_vals[idx], 
+                    macd_val=macd_diff_vals[idx], 
+                    bb_val=bb_width_vals[idx]
+                )
+            )
+            y_all.append(np.log(prices[idx + 1] / prices[idx]))
             
         X_all = np.array(X_all)
         y_all = np.array(y_all)
@@ -447,7 +620,11 @@ def train_and_forecast(df: pd.DataFrame, model_type: str, horizon: int, db: Sess
         reg_test = reg_func()
         reg_test.fit(X_all[:split_idx], y_all[:split_idx])
         test_preds = reg_test.predict(X_all[split_idx:])
-        metrics = calculate_metrics(y_all[split_idx:], test_preds)
+        
+        # Convert test predictions and true values to raw price space for metrics calculation (one-step prediction)
+        test_prices_true = prices[split_idx + 36 :]
+        test_prices_pred = prices[split_idx + 35 : -1] * np.exp(test_preds)
+        metrics = calculate_metrics(test_prices_true, test_prices_pred)
         
         reg_full = reg_func()
         reg_full.fit(X_all, y_all)
@@ -456,10 +633,20 @@ def train_and_forecast(df: pd.DataFrame, model_type: str, horizon: int, db: Sess
         residual_std = np.std(residuals)
         
         prices_forecast = list(prices)
+        # TODO: Error compounds with horizon as predictions are fed back recursively
         for _ in range(horizon):
             idx = len(prices_forecast) - 1
-            feat = get_features_for_index(prices_forecast, idx)
-            pred = reg_full.predict(feat.reshape(1, -1))[0]
+            # Compute latest indicators on the fly using safe helper
+            rsi_latest, macd_latest, bb_latest = get_latest_indicators(prices_forecast)
+            feat = get_features_for_index(
+                prices_forecast, 
+                idx, 
+                rsi_val=rsi_latest, 
+                macd_val=macd_latest, 
+                bb_val=bb_latest
+            )
+            pred_log_return = reg_full.predict(feat.reshape(1, -1))[0]
+            pred = prices_forecast[-1] * np.exp(pred_log_return)
             prices_forecast.append(pred)
             
         future_preds = np.array(prices_forecast[-horizon:])
@@ -478,9 +665,14 @@ def train_and_forecast(df: pd.DataFrame, model_type: str, horizon: int, db: Sess
         future_date = (last_date + timedelta(days=i+1)).strftime("%Y-%m-%d")
         pred_val = float(future_preds[i])
         
-        std_error = residual_std * np.sqrt(i + 1)
-        upper_val = pred_val + 1.96 * std_error
-        lower_val = max(0.0, pred_val - 1.96 * std_error)
+        if model_type == "seasonal_trend":
+            std_error = residual_std * np.sqrt(i + 1)
+            upper_val = pred_val + 1.96 * std_error
+            lower_val = max(0.0, pred_val - 1.96 * std_error)
+        else:
+            std_error = residual_std * np.sqrt(i + 1)
+            upper_val = pred_val * np.exp(1.96 * std_error)
+            lower_val = max(0.0, pred_val * np.exp(-1.96 * std_error))
         
         forecast_list.append({
             "date": future_date,
@@ -531,5 +723,6 @@ def train_and_forecast(df: pd.DataFrame, model_type: str, horizon: int, db: Sess
         "scenarios": scenarios_list,
         "explanations": explanations,
         "multifactor": multifactor,
-        "news_correlation": news_correlation
+        "news_correlation": news_correlation,
+        "selected_model": model_type
     }

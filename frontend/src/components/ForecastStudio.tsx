@@ -34,7 +34,6 @@ interface ForecastStudioProps {
 }
 
 export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProps) {
-  const [model, setModel] = useState<string>("seasonal_trend");
   const [horizon, setHorizon] = useState<number>(30);
   const [query, setQuery] = useState<string>("");
   const [hoveredMetric, setHoveredMetric] = useState<string | null>(null);
@@ -46,8 +45,8 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
   });
 
   const forecastQuery = useQuery({
-    queryKey: ["run-forecast", symbol, model, horizon],
-    queryFn: () => runForecast(symbol, model, horizon),
+    queryKey: ["run-forecast", symbol, horizon],
+    queryFn: () => runForecast(symbol, undefined, horizon),
     staleTime: 60000,
   });
 
@@ -213,7 +212,7 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
         <body>
           <div class="header">
             <h1>StockVision Pro AI Forecast Report</h1>
-            <p>Symbol: <strong>${symbol.toUpperCase()}</strong> | Model: <strong>${MODEL_INFOS[model]?.name}</strong> | Horizon: <strong>${horizon} Days</strong> | Date Generated: ${new Date().toLocaleDateString()}</p>
+            <p>Symbol: <strong>${symbol.toUpperCase()}</strong> | Model: <strong>${MODEL_INFOS[forecastData.selected_model]?.name || forecastData.selected_model}</strong> | Horizon: <strong>${horizon} Days</strong> | Date Generated: ${new Date().toLocaleDateString()}</p>
           </div>
           <div class="grid">
             <div class="card">
@@ -260,7 +259,8 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
     printWindow.document.close();
   };
 
-  const activeModelInfo = MODEL_INFOS[model];
+  const activeModel = forecastData?.selected_model || "seasonal_trend";
+  const activeModelInfo = MODEL_INFOS[activeModel];
 
   return (
     <div className="page-grid fs-page-grid">
@@ -330,23 +330,7 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
             </div>
           </div>
 
-          {/* Model Selector */}
-          <div>
-            <label style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)", display: "block", marginBottom: "8px" }}>
-              Forecasting Model
-            </label>
-            <select
-              className="field"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              style={{ width: "100%", padding: "12px", borderRadius: "10px", background: "var(--bg-surface)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
-            >
-              <option value="seasonal_trend">Seasonal Trend Decomposition (Prophet mimic)</option>
-              <option value="random_forest">Random Forest Regressor</option>
-              <option value="gradient_boosting">Gradient Boosting Regressor</option>
-              <option value="neural_network">Neural Network (MLP)</option>
-            </select>
-          </div>
+
 
           {/* Horizon Selector */}
           <div>
@@ -390,9 +374,26 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
         transition={{ delay: 0.1 }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <LineIcon size={18} style={{ color: "var(--primary)" }} />
-            <h3>Dual-Line Forecast Chart</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <LineIcon size={18} style={{ color: "var(--primary)" }} />
+              <h3>Dual-Line Forecast Chart</h3>
+            </div>
+            {forecastData && forecastData.selected_model && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "var(--accent-teal)",
+                  background: "rgba(0, 201, 167, 0.08)",
+                  border: "1px solid rgba(0, 201, 167, 0.15)",
+                  padding: "3px 10px",
+                  borderRadius: "20px",
+                  fontWeight: 600,
+                }}
+              >
+                Best-fit model: {MODEL_INFOS[forecastData.selected_model]?.name || forecastData.selected_model}
+              </span>
+            )}
           </div>
           {forecastData && (
             <div style={{ display: "flex", gap: "8px" }}>
