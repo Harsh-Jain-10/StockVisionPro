@@ -102,18 +102,7 @@ async def check_alerts_loop() -> None:
                                 alert.triggered_at = datetime.now(timezone.utc)
                                 db.commit()
                                 
-                                alert_email = os.getenv("ADMIN_EMAIL") or os.getenv("SMTP_USER")
-                                if alert_email:
-                                    from services.mail_service import send_alert_trigger_email
-                                    send_alert_trigger_email(
-                                        email_to=alert_email,
-                                        symbol=symbol,
-                                        alert_type=alert.alert_type,
-                                        threshold=alert.value,
-                                        current_price=current_price,
-                                        message=trigger_reason
-                                    )
-                                    print(f"[Alerts Loop] Triggered alert {alert.id} for {alert_email} on {symbol}")
+                                print(f"[Alert Triggered] Alert ID: {alert.id} | Symbol: {symbol} | Reason: {trigger_reason}")
                     except Exception as e:
                         print(f"[Alerts Loop Error] Failed to process alerts for {symbol}: {e}")
         except Exception as e:

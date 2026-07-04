@@ -46,7 +46,7 @@ Now fully upgraded for cloud-ready enterprise deployment, the platform integrate
 
 ### 💼 Live Watchlist & Real-Time Alerts
 - **Live Watchlist**: Persisted watchlists with real-time 30-second polling and mini sparkline charts.
-- **Rule-Based Alerts**: Set price crossing thresholds (e.g., Price > X, RSI < 30) and get notified instantly via email or console logs.
+- **Rule-Based Alerts**: Set price crossing thresholds (e.g., Price > X, RSI < 30) and get notified instantly via console logs.
 - **Economic Calendar**: Keep track of High, Medium, and Low-impact macroeconomic events globally.
 - **Dark Mode**: Flawless CSS-variable-based theme toggles for night trading sessions.
 
@@ -128,14 +128,7 @@ DATABASE_URL=postgresql://postgres.rvsqggigzpemerolmtfu:[YOUR-PASSWORD]@aws-1-ap
 ML_RETRAIN_INTERVAL_HOURS=24
 PRICE_REFRESH_SECONDS=10
 
-# SMTP Configuration for alert email notifications (Optional – console logging fallback in dev)
 ENV=development
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email@gmail.com
-SMTP_PASSWORD=your_16_digit_app_password
-SMTP_SENDER=StockVision Pro <your_email@gmail.com>
-ADMIN_EMAIL=recipient_email@gmail.com
 ```
 
 Run the API server:
