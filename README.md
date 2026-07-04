@@ -35,10 +35,14 @@ Now fully upgraded for cloud-ready enterprise deployment, the platform integrate
 - **AI Chatbot Assistant**: Ask natural language questions about market trends or specific stock fundamentals.
 
 ### 🔮 Predictive Forecasting & Signals
-- **Forecast Studio**: Model future performance using machine learning algorithms (e.g., Random Forest) directly on historical prices.
+- **Forecast Studio**: Auto-forecasts future prices using machine learning models (Random Forest, Gradient Boosting, Multi-Layer Perceptron, or custom Seasonal Trend Decomposition). It features:
+  - **Log-Return Target Regressor**: Models log returns instead of raw prices, solving the tree-model extrapolation ceiling bug and enabling real trend extrapolation.
+  - **Dynamic Feature Matrix**: Feeds technical indicators (RSI(14), MACD diff, Bollinger Band width) alongside price lags and rolling statistics directly into model inputs.
+  - **Log-Normal Confidence Bands**: Computes confidence intervals in return-space, applying multiplicative scaling for future step bounds.
+  - **Validation-Based Auto Model Selection**: Automatically trains all 4 models on an 80/20 train/validation split, computes price-space validation MAPE (anchored on one-step actual prices), selects the best-fit model dynamically per stock, and runs recursive forecasting only on the winner.
 - **Forecast Opportunities**: Auto-scans the stock universe to identify and rank under/overvalued options.
 - **Technical Signals**: Instantly calculates and aggregates signal metrics (Buy/Sell/Neutral) across leading indicators.
-- **Forecast Accuracy**: Tracks and visualizes past forecasting performance to gauge model reliability.
+- **Forecast Accuracy**: Tracks and visualizes past forecasting performance to gauge model reliability, logging the actual dynamic model used in the database ledger.
 
 ### 💼 Live Watchlist & Real-Time Alerts
 - **Live Watchlist**: Persisted watchlists with real-time 30-second polling and mini sparkline charts.
@@ -56,6 +60,7 @@ Now fully upgraded for cloud-ready enterprise deployment, the platform integrate
 - **Interactive Search**: Dynamic full-screen search modal with autocomplete, trending symbols, and `localStorage` search history persistence.
 - **Robinhood-Style Movers Card Layout**: Stacks and re-formats stock tables on mobile into a compact 2x2 grid (Symbol and Name on the left, Price and Change on the right).
 - **Responsive Chart Controls**: Implemented responsive heights and `touch-action: pan-y` rules to prevent layout breaking or scroll-locking on mobile touch inputs.
+- **Forecast Studio UI Simplification**: Removed the manual model selector dropdown, streamlining user interaction. The system automatically displays a dynamic badge showing the "Best-fit model" selected for the stock and updates exports (CSV, PDF) and formulas accordingly.
 - **Forecast Studio Mobile Reordering**: Orders sections to present AI Insights and News Correlation directly above charts on mobile.
 - **Desktop Guard**: Confines overrides strictly inside media queries, ensuring the Desktop view (1024px+) remains 100% untouched.
 
