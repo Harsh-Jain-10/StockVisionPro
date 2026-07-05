@@ -180,7 +180,6 @@ stock-vision-pro/
 ├── docker-compose.yml     # Orchestration
 └── README.md              # Project documentation
 ```
-
 ---
 
 ## 👨‍💻 Author
