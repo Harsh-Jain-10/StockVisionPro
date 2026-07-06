@@ -119,7 +119,6 @@ def on_startup() -> None:
 def health() -> dict[str, str]:
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
-
 app.include_router(stock.router)
 app.include_router(market.router)
 app.include_router(watchlist.router)
