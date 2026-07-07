@@ -57,7 +57,6 @@ stock-vision-pro/
         └── styles/          
             └── globals.css  # Global design system, layout styles, and CSS variables
 ```
-
 ---
 
 ## 🗄️ Database Schema & Models (`backend/models/database.py`)
