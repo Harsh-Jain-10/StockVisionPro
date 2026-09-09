@@ -117,7 +117,12 @@ def on_startup() -> None:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+    try:
+        with SessionLocal() as db:
+            db.execute(select(1))
+        return {"status": "ok", "db": "connected", "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        return {"status": "error", "db": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 app.include_router(stock.router)
 app.include_router(market.router)
