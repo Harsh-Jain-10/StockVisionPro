@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler
 from sqlalchemy.orm import Session
 from ta.momentum import RSIIndicator
 from ta.trend import MACD
@@ -451,8 +452,9 @@ def generate_technical_signal(df: pd.DataFrame) -> dict:
 
 def select_best_model(df: pd.DataFrame) -> str:
     """
-    Evaluates all 4 forecasting models using validation MAPE (80/20 train/validation split)
-    and returns the name of the model with the lowest validation MAPE.
+    Evaluates all 4 forecasting models using a 60/20/20 chronological split (train/validation/test).
+    Selects the best model architecture by minimizing MAPE on the VALIDATION slice only.
+    The TEST slice is held out and never seen during model selection.
     Uses one-step price reconstruction anchored on actual previous prices for log-return models.
     """
     df = df.sort_values(by="Date").reset_index(drop=True)
@@ -466,11 +468,13 @@ def select_best_model(df: pd.DataFrame) -> str:
     # 1. Seasonal Trend
     try:
         t = np.arange(N, dtype=float)
-        split_idx_st = int(N * 0.8)
+        train_idx_st = int(N * 0.6)
+        val_idx_st = int(N * 0.8)
+        
         st_model = SeasonalTrendRegressor()
-        st_model.fit(t[:split_idx_st], prices[:split_idx_st])
-        st_test_preds = st_model.predict(t[split_idx_st:])
-        st_metrics = calculate_metrics(prices[split_idx_st:], st_test_preds)
+        st_model.fit(t[:train_idx_st], prices[:train_idx_st])
+        st_val_preds = st_model.predict(t[train_idx_st:val_idx_st])
+        st_metrics = calculate_metrics(prices[train_idx_st:val_idx_st], st_val_preds)
         candidate_mapes["seasonal_trend"] = st_metrics["mape"]
     except Exception as e:
         print(f"[Model Selector] Seasonal trend validation failed: {e}")
@@ -505,7 +509,14 @@ def select_best_model(df: pd.DataFrame) -> str:
         y_all = np.array(y_all)
         
         M = len(X_all)
-        split_idx_sk = int(M * 0.8)
+        train_idx_sk = int(M * 0.6)
+        val_idx_sk = int(M * 0.8)
+
+        X_train = X_all[:train_idx_sk]
+        y_train = y_all[:train_idx_sk]
+        X_val = X_all[train_idx_sk:val_idx_sk]
+        y_val = y_all[train_idx_sk:val_idx_sk]
+        # X_test = X_all[val_idx_sk:] held out and never seen during model selection
         
         # Candidate Sklearn models
         sklearn_models = {
@@ -517,14 +528,22 @@ def select_best_model(df: pd.DataFrame) -> str:
         for model_name, reg_func in sklearn_models.items():
             try:
                 reg_test = reg_func()
-                reg_test.fit(X_all[:split_idx_sk], y_all[:split_idx_sk])
-                test_preds = reg_test.predict(X_all[split_idx_sk:])
+                if model_name == "neural_network":
+                    scaler = StandardScaler()
+                    X_train_in = scaler.fit_transform(X_train)
+                    X_val_in = scaler.transform(X_val)
+                else:
+                    X_train_in = X_train
+                    X_val_in = X_val
+
+                reg_test.fit(X_train_in, y_train)
+                val_preds = reg_test.predict(X_val_in)
                 
-                # Convert to raw price space using one-step prediction anchored on actual previous price
-                test_prices_true = prices[split_idx_sk + 36 :]
-                test_prices_pred = prices[split_idx_sk + 35 : -1] * np.exp(test_preds)
+                # Convert validation predictions to raw price space (anchored on actual previous price)
+                val_prices_true = prices[train_idx_sk + 36 : val_idx_sk + 36]
+                val_prices_pred = prices[train_idx_sk + 35 : val_idx_sk + 35] * np.exp(val_preds)
                 
-                metrics = calculate_metrics(test_prices_true, test_prices_pred)
+                metrics = calculate_metrics(val_prices_true, val_prices_pred)
                 candidate_mapes[model_name] = metrics["mape"]
             except Exception as e:
                 print(f"[Model Selector] {model_name} validation failed: {e}")
@@ -540,7 +559,7 @@ def select_best_model(df: pd.DataFrame) -> str:
     if candidate_mapes[best_model] == float("inf"):
         best_model = "seasonal_trend"
         
-    print(f"[Model Selector] Evaluated MAPEs: {candidate_mapes} | Best model: {best_model}")
+    print(f"[Model Selector] Validation MAPEs (60/20): {candidate_mapes} | Best model: {best_model}")
     return best_model
 
 
@@ -559,18 +578,22 @@ def train_and_forecast(df: pd.DataFrame, model_type: str | None, horizon: int, d
     # 1. Fit & Forecast using custom SeasonalTrendRegressor (if selected)
     if model_type == "seasonal_trend":
         t = np.arange(N, dtype=float)
-        split_idx = int(N * 0.8)
+        train_idx = int(N * 0.6)
+        val_idx = int(N * 0.8)
         
         model_test = SeasonalTrendRegressor()
-        model_test.fit(t[:split_idx], prices[:split_idx])
-        test_preds = model_test.predict(t[split_idx:])
-        metrics = calculate_metrics(prices[split_idx:], test_preds)
+        model_test.fit(t[:train_idx], prices[:train_idx])
+        test_preds = model_test.predict(t[val_idx:])
+        metrics = calculate_metrics(prices[val_idx:], test_preds)
         
+        # Out-of-sample residuals computed from TEST slice predictions vs actual values
+        residuals = prices[val_idx:] - test_preds
+        residual_std = float(np.std(residuals))
+        if residual_std == 0 or np.isnan(residual_std):
+            residual_std = 1.0
+
         model_full = SeasonalTrendRegressor()
         model_full.fit(t, prices)
-        
-        residuals = prices - model_full.predict(t)
-        residual_std = np.std(residuals)
         
         future_t = np.arange(N, N + horizon, dtype=float)
         future_preds = model_full.predict(future_t)
@@ -606,7 +629,8 @@ def train_and_forecast(df: pd.DataFrame, model_type: str | None, horizon: int, d
         y_all = np.array(y_all)
         
         M = len(X_all)
-        split_idx = int(M * 0.8)
+        train_idx = int(M * 0.6)
+        val_idx = int(M * 0.8)
         
         if model_type == "random_forest":
             reg_func = lambda: RandomForestRegressor(n_estimators=50, random_state=42)
@@ -618,19 +642,35 @@ def train_and_forecast(df: pd.DataFrame, model_type: str | None, horizon: int, d
             raise ValueError(f"Unknown model type: {model_type}")
             
         reg_test = reg_func()
-        reg_test.fit(X_all[:split_idx], y_all[:split_idx])
-        test_preds = reg_test.predict(X_all[split_idx:])
+        if model_type == "neural_network":
+            scaler_eval = StandardScaler()
+            X_train_scaled = scaler_eval.fit_transform(X_all[:train_idx])
+            X_test_scaled = scaler_eval.transform(X_all[val_idx:])
+            reg_test.fit(X_train_scaled, y_all[:train_idx])
+            test_preds = reg_test.predict(X_test_scaled)
+        else:
+            reg_test.fit(X_all[:train_idx], y_all[:train_idx])
+            test_preds = reg_test.predict(X_all[val_idx:])
         
-        # Convert test predictions and true values to raw price space for metrics calculation (one-step prediction)
-        test_prices_true = prices[split_idx + 36 :]
-        test_prices_pred = prices[split_idx + 35 : -1] * np.exp(test_preds)
+        # Convert test predictions and true values to raw price space for metrics calculation (one-step prediction on TEST slice)
+        test_prices_true = prices[val_idx + 36 :]
+        test_prices_pred = prices[val_idx + 35 : -1] * np.exp(test_preds)
         metrics = calculate_metrics(test_prices_true, test_prices_pred)
         
+        # Out-of-sample residuals computed from TEST slice predictions vs actual values
+        residuals = y_all[val_idx:] - test_preds
+        residual_std = float(np.std(residuals))
+        if residual_std == 0 or np.isnan(residual_std):
+            residual_std = 0.01
+
         reg_full = reg_func()
-        reg_full.fit(X_all, y_all)
-        
-        residuals = y_all - reg_full.predict(X_all)
-        residual_std = np.std(residuals)
+        scaler_prod = None
+        if model_type == "neural_network":
+            scaler_prod = StandardScaler()
+            X_all_scaled = scaler_prod.fit_transform(X_all)
+            reg_full.fit(X_all_scaled, y_all)
+        else:
+            reg_full.fit(X_all, y_all)
         
         prices_forecast = list(prices)
         # TODO: Error compounds with horizon as predictions are fed back recursively
@@ -645,7 +685,11 @@ def train_and_forecast(df: pd.DataFrame, model_type: str | None, horizon: int, d
                 macd_val=macd_latest, 
                 bb_val=bb_latest
             )
-            pred_log_return = reg_full.predict(feat.reshape(1, -1))[0]
+            if model_type == "neural_network":
+                feat_scaled = scaler_prod.transform(feat.reshape(1, -1))
+                pred_log_return = reg_full.predict(feat_scaled)[0]
+            else:
+                pred_log_return = reg_full.predict(feat.reshape(1, -1))[0]
             pred = prices_forecast[-1] * np.exp(pred_log_return)
             prices_forecast.append(pred)
             
@@ -676,9 +720,9 @@ def train_and_forecast(df: pd.DataFrame, model_type: str | None, horizon: int, d
         
         forecast_list.append({
             "date": future_date,
-            "base": round(pred_val, 2),
-            "upper": round(upper_val, 2),
-            "lower": round(lower_val, 2)
+            "base": float(round(pred_val, 2)),
+            "upper": float(round(upper_val, 2)),
+            "lower": float(round(lower_val, 2))
         })
         
     # Generate scenarios (Bull, Bear, Neutral)
@@ -691,9 +735,9 @@ def train_and_forecast(df: pd.DataFrame, model_type: str | None, horizon: int, d
         bear_val = max(0.0, base - (base - lower) * 0.5)
         scenarios_list.append({
             "date": f["date"],
-            "neutral": round(base, 2),
-            "bull": round(bull_val, 2),
-            "bear": round(bear_val, 2)
+            "neutral": float(round(base, 2)),
+            "bull": float(round(bull_val, 2)),
+            "bear": float(round(bear_val, 2))
         })
 
     # Generate explanations, multi-factor scores and news correlations
