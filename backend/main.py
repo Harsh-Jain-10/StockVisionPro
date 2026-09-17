@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import select
 from models.database import SessionLocal, init_db, Alert, utc_now
-from routers import ai, alerts, compare, market, stock, watchlist, backtest, forecast
+from routers import ai, alerts, auth, compare, market, saved_backtests, stock, watchlist, backtest, forecast
 
 from services.data_service import get_quote, get_history_df
 
@@ -46,62 +46,66 @@ async def check_alerts_loop() -> None:
     while True:
         try:
             await asyncio.sleep(60)
-            print("[Alerts Loop] Scanning active alerts...")
             with SessionLocal() as db:
-                active_alerts = db.scalars(select(Alert).where(Alert.is_active == True)).all()
+                active_alerts = db.scalars(
+                    select(Alert).where(Alert.is_triggered == False)
+                ).all()
                 if not active_alerts:
                     continue
                 
                 from collections import defaultdict
                 alerts_by_symbol = defaultdict(list)
                 for a in active_alerts:
-                    alerts_by_symbol[a.symbol].append(a)
+                    symbol_key = a.ticker or a.symbol
+                    if symbol_key:
+                        alerts_by_symbol[symbol_key].append(a)
                 
                 for symbol, symbol_alerts in alerts_by_symbol.items():
                     try:
                         quote = get_quote(symbol, db)
+                        current_price = quote.price
+                        if current_price is None:
+                            continue
+
                         df = get_history_df(symbol, "1y", db)
                         from services.technical_service import calculate_all
                         indicators = calculate_all(df)
                         summary = indicators["summary"]
-                        current_price = quote.price
                         
-                        if current_price is None:
-                            continue
-                            
                         for alert in symbol_alerts:
                             triggered = False
                             trigger_reason = ""
+                            cond = alert.condition_type or alert.alert_type
+                            val = alert.threshold_value if alert.threshold_value is not None else alert.value
                             
-                            if alert.alert_type == "above":
-                                if current_price > alert.value:
+                            if cond in ("price_above", "above"):
+                                if current_price > val:
                                     triggered = True
-                                    trigger_reason = f"Price ${current_price:,.2f} crossed above threshold ${alert.value:,.2f}"
-                            elif alert.alert_type == "below":
-                                if current_price < alert.value:
+                                    trigger_reason = f"Price ${current_price:,.2f} crossed above threshold ${val:,.2f}"
+                            elif cond in ("price_below", "below"):
+                                if current_price < val:
                                     triggered = True
-                                    trigger_reason = f"Price ${current_price:,.2f} crossed below threshold ${alert.value:,.2f}"
-                            elif alert.alert_type == "sma_crossover":
+                                    trigger_reason = f"Price ${current_price:,.2f} crossed below threshold ${val:,.2f}"
+                            elif cond == "sma_crossover":
                                 if summary.sma_20 is not None and summary.sma_50 is not None:
                                     if summary.sma_20 > summary.sma_50:
                                         triggered = True
                                         trigger_reason = f"SMA 20 (${summary.sma_20:.2f}) crossed above SMA 50 (${summary.sma_50:.2f})"
-                            elif alert.alert_type == "rsi_oversold":
-                                threshold = alert.value if alert.value > 0 else 30.0
+                            elif cond in ("rsi_below", "rsi_oversold"):
+                                threshold = val if val and val > 0 else 30.0
                                 if summary.rsi is not None and summary.rsi < threshold:
                                     triggered = True
-                                    trigger_reason = f"RSI is {summary.rsi:.2f} (Oversold < {threshold:.0f})"
-                            elif alert.alert_type == "rsi_overbought":
-                                threshold = alert.value if alert.value > 0 else 70.0
+                                    trigger_reason = f"RSI is {summary.rsi:.2f} (Below {threshold:.0f})"
+                            elif cond in ("rsi_above", "rsi_overbought"):
+                                threshold = val if val and val > 0 else 70.0
                                 if summary.rsi is not None and summary.rsi > threshold:
                                     triggered = True
-                                    trigger_reason = f"RSI is {summary.rsi:.2f} (Overbought > {threshold:.0f})"
+                                    trigger_reason = f"RSI is {summary.rsi:.2f} (Above {threshold:.0f})"
                                     
                             if triggered:
-                                alert.is_active = False
-                                alert.triggered_at = datetime.now(timezone.utc)
+                                alert.is_triggered = True
+                                alert.triggered_at = utc_now()
                                 db.commit()
-                                
                                 print(f"[Alert Triggered] Alert ID: {alert.id} | Symbol: {symbol} | Reason: {trigger_reason}")
                     except Exception as e:
                         print(f"[Alerts Loop Error] Failed to process alerts for {symbol}: {e}")
@@ -124,10 +128,12 @@ def health() -> dict[str, str]:
     except Exception as e:
         return {"status": "error", "db": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
 
+app.include_router(auth.router)
 app.include_router(stock.router)
 app.include_router(market.router)
 app.include_router(watchlist.router)
 app.include_router(alerts.router)
+app.include_router(saved_backtests.router)
 app.include_router(compare.router)
 app.include_router(ai.router)
 app.include_router(backtest.router)

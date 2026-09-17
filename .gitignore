@@ -46,3 +46,11 @@ build/
 .agents/
 .agents
 
+# Audit & local analysis files (no deployment usecase)
+AUDIT.md
+WALK_FORWARD_RESULTS.md
+backend/scripts/walk_forward_validation.py
+backend/scripts/parse_results.py
+backend/tests/
+.pytest_cache/
+

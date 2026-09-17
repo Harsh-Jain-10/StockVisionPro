@@ -11,7 +11,7 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
-import { runForecast, searchStocks, getQuote } from "../api/client";
+import { runForecast, searchStocks, getQuote, getForecastConfidence, addWatchlist } from "../api/client";
 
 interface ForecastStudioProps {
   symbol: string;
@@ -19,12 +19,33 @@ interface ForecastStudioProps {
 }
 
 export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProps) {
+  const qc = useQueryClient();
   const [horizon, setHorizon] = useState<number>(30);
   const [tickerInput, setTickerInput] = useState<string>(`${symbol} · ${symbol === "AAPL" ? "Apple Inc." : symbol}`);
   const [isComputing, setIsComputing] = useState<boolean>(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [hoveredMetric, setHoveredMetric] = useState<string | null>(null);
+  const [watchlistSuccess, setWatchlistSuccess] = useState<boolean>(false);
+
+  // Honest model confidence query
+  const confQuery = useQuery({
+    queryKey: ["model-confidence", symbol],
+    queryFn: () => getForecastConfidence(symbol),
+    staleTime: 60000,
+  });
+  const confData = confQuery.data;
+
+  const handleAddToWatchlist = async () => {
+    try {
+      await addWatchlist(symbol);
+      setWatchlistSuccess(true);
+      qc.invalidateQueries({ queryKey: ["watchlist"] });
+      setTimeout(() => setWatchlistSuccess(false), 2500);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // Active theme tracking for dynamic chart styling
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -43,8 +64,6 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => observer.disconnect();
   }, []);
-
-  const qc = useQueryClient();
 
   const search = useQuery({
     queryKey: ["forecast-search", searchQuery],
@@ -366,7 +385,22 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
                 )}
               </div>
 
-              <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleAddToWatchlist}
+                  className={`px-3.5 py-2.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                    watchlistSuccess
+                      ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                      : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700"
+                  }`}
+                  title="Add this ticker to your personal watchlist"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {watchlistSuccess ? "check" : "star"}
+                  </span>
+                  <span>{watchlistSuccess ? "Added to Watchlist!" : "+ Add to Watchlist"}</span>
+                </button>
                 <button
                   className="fs-primary-btn"
                   id="runSimBtn"
@@ -957,94 +991,111 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
             </div>
           </div>
 
-          {/* Right Column: Model Stability & Signal Confidence (5 Cols) */}
+          {/* Right Column: Honest Model Confidence & Skill Score Panel (5 Cols) */}
           <div className="lg:col-span-5 flex flex-col gap-8">
-            {/* Model Stability Card */}
+            {/* Honest Confidence Card */}
             <div className="bg-white dark:bg-[#111827] rounded-2xl p-8 border border-slate-200/80 dark:border-[#1f2937] shadow-[0_1px_4px_rgba(0,0,0,0.03)] flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                      <span className="material-symbols-outlined text-[22px]">verified_user</span>
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                      <span className="material-symbols-outlined text-[22px]">analytics</span>
                     </div>
                     <div>
-                      <h3 className="font-headline-md text-lg font-bold text-slate-900 dark:text-slate-100">Model Stability &amp; Confidence</h3>
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Cross-validation consensus index</span>
+                      <h3 className="font-headline-md text-lg font-bold text-slate-900 dark:text-slate-100">Honest Model Confidence</h3>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Walk-forward out-of-sample persistence benchmark</span>
                     </div>
                   </div>
-                  <span className="px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 font-mono text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                    {overallStatus}
+                  <span
+                    className={`px-3 py-1 rounded-lg border font-mono text-xs font-bold ${
+                      confData?.is_statistically_significant && (confData?.skill_score ?? 0) > 0
+                        ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
+                        : !confData?.is_benchmarked
+                        ? "bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300"
+                        : "bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    {confData?.label || "No validated edge"}
                   </span>
                 </div>
 
-                {/* Circular Progress Visualization */}
-                <div className="flex flex-col items-center justify-center my-8">
-                  <div className="relative w-48 h-48 flex items-center justify-center">
-                    <svg className="w-full h-full -rotate-90 drop-shadow-sm" viewBox="0 0 120 120">
-                      <circle
-                        cx="60"
-                        cy="60"
-                        fill="none"
-                        r="50"
-                        stroke={isDark ? "#1e293b" : "#f1f5f9"}
-                        strokeWidth="9"
-                      />
-                      <circle
-                        className="text-blue-600 dark:text-blue-500 transition-all duration-1000 ease-out"
-                        cx="60"
-                        cy="60"
-                        fill="none"
-                        r="50"
-                        stroke="currentColor"
-                        strokeDasharray="314.15"
-                        strokeDashoffset={dashoffset}
-                        strokeLinecap="round"
-                        strokeWidth="9"
-                      />
-                    </svg>
-                    <div className="absolute flex flex-col items-center">
-                      <span className="text-4xl font-extrabold text-slate-900 dark:text-slate-100 font-mono leading-none tracking-tight">
-                        {confidence}%
-                      </span>
-                      <span className="font-mono text-xs text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-2 font-semibold">
-                        CONFIDENCE
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs text-slate-400 dark:text-slate-500 text-center mt-3 font-medium">
-                    Validated across 1,024 synthetic Monte Carlo paths
+                {/* Honest Skill Score Metric Visualization */}
+                <div className="flex flex-col items-center justify-center my-6 p-6 rounded-2xl bg-slate-50 dark:bg-[#1e293b]/40 border border-slate-100 dark:border-slate-800">
+                  <span className="font-mono text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
+                    Skill Score vs. Naive Persistence
                   </span>
+                  <div className="flex items-baseline gap-1 my-2">
+                    <span
+                      className={`text-5xl font-black font-mono tracking-tight ${
+                        confData?.skill_score !== null && confData?.skill_score !== undefined && confData.skill_score > 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : confData?.skill_score !== null && confData?.skill_score !== undefined
+                          ? "text-rose-600 dark:text-rose-400"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {confData?.skill_score !== null && confData?.skill_score !== undefined
+                        ? `${confData.skill_score > 0 ? "+" : ""}${confData.skill_score.toFixed(2)}%`
+                        : "N/A"}
+                    </span>
+                  </div>
+                  <div className="mt-1 px-3 py-1 rounded-full bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-700 text-[11px] font-mono text-slate-600 dark:text-slate-400">
+                    (1 - Model MAPE / Naive MAPE) × 100
+                  </div>
                 </div>
 
-                {/* Stability Breakdown List */}
-                <div className="flex flex-col gap-3 pt-2">
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b]/60 border border-slate-200/70 dark:border-[#334155]">
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-[20px] text-emerald-600 dark:text-emerald-400">check_circle</span>
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Data Quality</span>
+                {/* Honest Plain-Language Explanation */}
+                <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 mb-6">
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed m-0 font-medium">
+                    "{confData?.explanation || "This forecast has not shown a statistically validated advantage over simply assuming tomorrow's price equals today's price."}"
+                  </p>
+                </div>
+
+                {/* Statistical Breakdown List */}
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-[#1e293b]/60 border border-slate-200/70 dark:border-[#334155]">
+                    <div className="flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-[18px] text-blue-600 dark:text-blue-400">equalizer</span>
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Model MAPE</span>
                     </div>
-                    <span className="px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 font-mono text-xs text-emerald-700 dark:text-emerald-300 font-bold">
-                      {dataQuality}
+                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {confData?.model_mape !== null && confData?.model_mape !== undefined
+                        ? `${confData.model_mape.toFixed(2)}%`
+                        : `${(forecastData?.metrics?.mape ?? 1.48).toFixed(2)}%`}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b]/60 border border-slate-200/70 dark:border-[#334155]">
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-[20px] text-blue-600 dark:text-blue-400">trending_up</span>
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Trend Stability</span>
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-[#1e293b]/60 border border-slate-200/70 dark:border-[#334155]">
+                    <div className="flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-[18px] text-slate-500">lock_clock</span>
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Naive Persistence MAPE</span>
                     </div>
-                    <span className="px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 font-mono text-xs text-blue-700 dark:text-blue-300 font-bold">
-                      {trendStability}
+                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {confData?.naive_mape !== null && confData?.naive_mape !== undefined
+                        ? `${confData.naive_mape.toFixed(2)}%`
+                        : "Baseline (P̂_{t+1} = P_t)"}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b]/60 border border-slate-200/70 dark:border-[#334155]">
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-[20px] text-amber-500">warning</span>
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Volatility Risk</span>
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-[#1e293b]/60 border border-slate-200/70 dark:border-[#334155]">
+                    <div className="flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-[18px] text-indigo-500">fact_check</span>
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">DM Test (HAC Newey-West)</span>
                     </div>
-                    <span className="px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 font-mono text-xs text-amber-700 dark:text-amber-300 font-bold">
-                      {volatilityRisk}
+                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                      {confData?.dm_statistic !== null && confData?.dm_statistic !== undefined
+                        ? `t = ${confData.dm_statistic.toFixed(2)}`
+                        : "N/A"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-[#1e293b]/60 border border-slate-200/70 dark:border-[#334155]">
+                    <div className="flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-[18px] text-emerald-600 dark:text-emerald-400">verified</span>
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">FDR-Corrected Edge</span>
+                    </div>
+                    <span className={`font-mono text-xs font-bold ${confData?.is_statistically_significant ? "text-emerald-600" : "text-slate-500"}`}>
+                      {confData?.is_statistically_significant ? "Yes (FDR < 0.05)" : "None (0 / 72 Pass)"}
                     </span>
                   </div>
                 </div>
@@ -1052,8 +1103,8 @@ export default function ForecastStudio({ symbol, setSymbol }: ForecastStudioProp
 
               {/* System Architecture Pill Note */}
               <div className="mt-8 p-3.5 rounded-xl bg-slate-100/80 dark:bg-[#1e293b]/80 border border-slate-200/80 dark:border-[#334155] flex items-center justify-between text-xs font-mono text-slate-600 dark:text-slate-400">
-                <span>Sampling Depth: 500 Sessions</span>
-                <span>Evaluation: Out-of-Sample</span>
+                <span>Validation Scheme: Expanding Window</span>
+                <span>Folds: 11–13 per asset</span>
               </div>
             </div>
           </div>

@@ -13,7 +13,8 @@ export type View =
   | "screener"
   | "watchlist"
   | "calendar"
-  | "accuracy";
+  | "accuracy"
+  | "backtest";
 
 interface MobileHeaderProps {
   currentView: View;
@@ -38,6 +39,8 @@ const viewTitles: Record<string, string> = {
   screener: "Screener",
   watchlist: "Watchlists",
   calendar: "Calendar",
+  accuracy: "Forecast Accuracy",
+  backtest: "Backtesting Studio",
 };
 
 export default function MobileHeader({

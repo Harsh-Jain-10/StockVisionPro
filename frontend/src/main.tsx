@@ -49,11 +49,19 @@ import {
   runAiScreener,
   searchStocks,
   type Quote,
+  logoutUser,
+  getCurrentUser,
+  refreshUserToken,
+  type UserProfile,
+  getTriggeredAlerts,
+  type ThresholdAlert,
 } from "./api/client";
 import { createChart, ColorType } from "lightweight-charts";
 import ForecastStudio from "./components/ForecastStudio";
 import ForecastOpportunities from "./components/ForecastOpportunities";
 import ForecastAccuracy from "./components/ForecastAccuracy";
+import BacktestingStudio from "./components/BacktestingStudio";
+import { AuthModal } from "./components/AuthModal";
 import MobileHeader from "./components/MobileHeader";
 import MobileBottomNav from "./components/MobileBottomNav";
 import MobileSearchModal from "./components/MobileSearchModal";
@@ -66,7 +74,7 @@ import "./styles/globals.css";
   document.documentElement.setAttribute("data-theme", saved);
 })();
 
-type View = "dashboard" | "stock" | "compare" | "screener" | "watchlist" | "alerts" | "calendar" | "forecast" | "opportunities" | "accuracy" | "sentiment" | "settings";
+type View = "dashboard" | "stock" | "compare" | "screener" | "watchlist" | "alerts" | "calendar" | "forecast" | "opportunities" | "accuracy" | "sentiment" | "settings" | "backtest";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
@@ -307,9 +315,8 @@ function AppShell() {
 
   const [view, setView] = useState<View>("dashboard");
   const [symbol, setSymbol] = useState("AAPL");
-  const [userId, setUserId] = useState("local_user");
-  const [userEmail, setUserEmail] = useState("local_user@stockvision.pro");
-  const [userRole, setUserRole] = useState("user");
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   
   const [isDark, setIsDark] = useState(() => localStorage.getItem("sv_theme") === "dark");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -327,14 +334,28 @@ function AppShell() {
 
   const qc = useQueryClient();
 
-  function handleLogin(uid: string, email: string, role: string) {
-    setUserId(uid);
-    setUserEmail(email);
-    setUserRole(role);
-    qc.invalidateQueries();
-  }
+  useEffect(() => {
+    getCurrentUser()
+      .then((u) => setCurrentUser(u))
+      .catch(() => {
+        refreshUserToken()
+          .then((r) => setCurrentUser(r.user))
+          .catch(() => setCurrentUser(null));
+      });
 
-  function handleLogout() {
+    const onLogoutEv = () => setCurrentUser(null);
+    const onAuthReq = () => setAuthModalOpen(true);
+    window.addEventListener("svp_auth_logout", onLogoutEv);
+    window.addEventListener("svp_auth_required", onAuthReq);
+    return () => {
+      window.removeEventListener("svp_auth_logout", onLogoutEv);
+      window.removeEventListener("svp_auth_required", onAuthReq);
+    };
+  }, []);
+
+  async function handleLogout() {
+    await logoutUser();
+    setCurrentUser(null);
     qc.invalidateQueries();
   }
 
@@ -342,8 +363,16 @@ function AppShell() {
   const fallbackTicker = (overview.data?.indices || []) as Quote[];
   const live = useLiveQuotes(["^GSPC", "^IXIC", "^DJI", "^NSEI", "^BSESN", "GLD", "BTC-USD", symbol]);
   const ticker = live.quotes.length ? live.quotes : fallbackTicker;
+  
   const alertsQuery = useQuery({ queryKey: ["alerts"], queryFn: getAlerts, refetchInterval: 30000 });
-  const activeAlertsCount = (alertsQuery.data || []).filter((a: any) => a.is_active).length;
+  const activeAlertsCount = (alertsQuery.data || []).filter((a: any) => a.is_active || !a.is_triggered).length;
+
+  const triggeredAlertsQuery = useQuery({
+    queryKey: ["alerts-triggered"],
+    queryFn: getTriggeredAlerts,
+    refetchInterval: 20000,
+  });
+  const triggeredCount = (triggeredAlertsQuery.data || []).length;
 
   return (
     <div className="app">
@@ -354,8 +383,8 @@ function AppShell() {
           onSearchClick={() => setSearchOpen(true)}
           isDark={isDark}
           onThemeToggle={toggleTheme}
-          userEmail={userEmail}
-          userRole={userRole}
+          userEmail={currentUser?.email || "Guest"}
+          userRole={currentUser?.role || "guest"}
           onLogout={handleLogout}
         />
       )}
@@ -388,42 +417,70 @@ function AppShell() {
         <div className="desk-workspace-box">
           <div className="desk-workspace-left">
             <LayoutGrid size={13} style={{ color: "var(--text-muted)" }} />
-            <span>Local Workspace</span>
+            <span>{currentUser ? `${currentUser.email.split("@")[0]}'s Desk` : "Guest Session"}</span>
           </div>
-          <span className="desk-prod-badge">PROD</span>
+          <span className="desk-prod-badge">{currentUser ? "PRO" : "DEMO"}</span>
         </div>
 
         <NavButton active={view === "dashboard"} onClick={() => setView("dashboard")} icon={<LayoutGrid />} label="Dashboard" />
         <NavButton active={view === "stock"} onClick={() => setView("stock")} icon={<CandlestickChart />} label="Stock Lab" />
         <NavButton active={view === "forecast"} onClick={() => setView("forecast")} icon={<Sparkles />} label="Forecast Studio" />
+        <NavButton active={view === "watchlist"} onClick={() => setView("watchlist")} icon={<Star />} label="Watchlist" />
+        <NavButton active={view === "backtest"} onClick={() => setView("backtest")} icon={<History />} label="Backtest & Strategies" />
         <NavButton active={view === "opportunities"} onClick={() => setView("opportunities")} icon={<Radar />} label="Market Opportunities" />
         <NavButton active={view === "accuracy"} onClick={() => setView("accuracy")} icon={<CheckCircle2 />} label="Forecast Accuracy" />
         <NavButton active={view === "sentiment"} onClick={() => setView("sentiment")} icon={<Newspaper />} label="News Sentiment" />
-        <NavButton active={view === "alerts"} onClick={() => setView("alerts")} icon={<Bell />} label="Alerts" badge={activeAlertsCount > 0 ? String(activeAlertsCount) : undefined} />
+        <NavButton
+          active={view === "alerts"}
+          onClick={() => setView("alerts")}
+          icon={<Bell />}
+          label="Alerts"
+          badge={triggeredCount > 0 ? `⚡ ${triggeredCount}` : activeAlertsCount > 0 ? String(activeAlertsCount) : undefined}
+        />
         <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={<SettingsIcon />} label="Settings" />
         
         <div style={{ flexGrow: 1 }} />
-        <DeskUserPill email={userEmail} role={userRole} onLogout={handleLogout} setView={setView} />
+        <DeskUserPill user={currentUser} onLogout={handleLogout} onOpenAuth={() => setAuthModalOpen(true)} setView={setView} />
       </aside>
       <main>
-        <Topbar symbol={symbol} setSymbol={setSymbol} setView={setView} live={live} isDark={isDark} onThemeToggle={toggleTheme} alertsCount={activeAlertsCount} />
+        <Topbar
+          symbol={symbol}
+          setSymbol={setSymbol}
+          setView={setView}
+          live={live}
+          isDark={isDark}
+          onThemeToggle={toggleTheme}
+          alertsCount={activeAlertsCount}
+          triggeredCount={triggeredCount}
+          user={currentUser}
+          onOpenAuth={() => setAuthModalOpen(true)}
+        />
         <TickerTape quotes={ticker} />
         {view === "dashboard" && <Dashboard setSymbol={setSymbol} setView={setView} />}
         {view === "stock" && <StockLab symbol={symbol} setSymbol={setSymbol} setView={setView} isDark={isDark} />}
         {view === "forecast" && <ForecastStudio symbol={symbol} setSymbol={setSymbol} />}
+        {view === "watchlist" && <Watchlist setSymbol={setSymbol} setView={setView} currentUser={currentUser} onOpenAuth={() => setAuthModalOpen(true)} />}
+        {view === "backtest" && <BacktestingStudio symbol={symbol} setSymbol={setSymbol} setView={setView} user={currentUser} onOpenAuth={() => setAuthModalOpen(true)} isDark={isDark} />}
         {view === "opportunities" && <ForecastOpportunities setSymbol={setSymbol} setView={setView} />}
         {view === "accuracy" && <ForecastAccuracy />}
         {view === "sentiment" && <NewsSentiment symbol={symbol} setSymbol={setSymbol} setView={setView} />}
-        {view === "alerts" && <Alerts symbol={symbol} />}
+        {view === "alerts" && <Alerts symbol={symbol} currentUser={currentUser} onOpenAuth={() => setAuthModalOpen(true)} />}
         {view === "settings" && <SettingsView isDark={isDark} onThemeToggle={toggleTheme} />}
 
         {/* Backwards compatibility views */}
         {view === "compare" && <Compare />}
         {view === "screener" && <Screener setSymbol={setSymbol} setView={setView} />}
-        {view === "watchlist" && <Watchlist setSymbol={setSymbol} setView={setView} />}
         {view === "calendar" && <EconomicCalendar />}
       </main>
       <AiChatbot symbol={symbol} setSymbol={setSymbol} setView={setView} />
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={(u) => {
+          setCurrentUser(u);
+          qc.invalidateQueries();
+        }}
+      />
     </div>
   );
 }
@@ -499,14 +556,14 @@ function NavButton({ active, onClick, icon, label, badge }: { active: boolean; o
 }
 
 function DeskUserPill({
-  email,
-  role,
+  user,
   onLogout,
+  onOpenAuth,
   setView,
 }: {
-  email: string;
-  role: string;
+  user: UserProfile | null;
   onLogout: () => void;
+  onOpenAuth: () => void;
   setView?: (v: View) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -522,7 +579,50 @@ function DeskUserPill({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const username = email ? email.split("@")[0] : "local_user";
+  if (!user) {
+    return (
+      <div style={{ width: "100%", padding: "4px 0" }}>
+        <button
+          className="desk-user-pill guest"
+          onClick={onOpenAuth}
+          style={{
+            width: "100%",
+            background: "linear-gradient(135deg, rgba(37,99,235,0.08), rgba(99,102,241,0.12))",
+            border: "1px solid rgba(59,130,246,0.3)",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "8px 12px",
+            borderRadius: "12px",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <div
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "8px",
+              background: "linear-gradient(135deg, #2563eb, #4f46e5)",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <User size={16} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)" }}>Sign In / Register</div>
+            <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>Sync Strategies &amp; Watchlist</div>
+          </div>
+        </button>
+      </div>
+    );
+  }
+
+  const username = user.email ? user.email.split("@")[0] : "Desk User";
 
   return (
     <div ref={ref} style={{ position: "relative", width: "100%" }}>
@@ -546,8 +646,8 @@ function DeskUserPill({
             <div style={{ fontSize: "10px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
               Active Desk Seat
             </div>
-            <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)" }}>
-              {email}
+            <div style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-primary)", wordBreak: "break-all" }}>
+              {user.email}
             </div>
           </div>
           {setView && (
@@ -621,6 +721,9 @@ function Topbar({
   isDark,
   onThemeToggle,
   alertsCount,
+  triggeredCount,
+  user,
+  onOpenAuth,
 }: {
   symbol: string;
   setSymbol: (s: string) => void;
@@ -629,6 +732,9 @@ function Topbar({
   isDark?: boolean;
   onThemeToggle?: () => void;
   alertsCount?: number;
+  triggeredCount?: number;
+  user?: UserProfile | null;
+  onOpenAuth?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const search = useQuery({ queryKey: ["search", query], queryFn: () => searchStocks(query), enabled: query.length > 1 });
@@ -751,20 +857,35 @@ function Topbar({
       </div>
 
       <div className="desk-topbar-actions">
-        <div className="desk-ws-pill" onClick={() => setView("settings")}>
+        <div className="desk-ws-pill" onClick={() => (user ? setView("settings") : onOpenAuth?.())}>
           <LayoutGrid size={13} style={{ color: "var(--primary-blue)" }} />
-          <span>local_user • Local Workspace</span>
+          <span>{user ? `${user.email.split("@")[0]} • Pro Seat` : "Guest Session"}</span>
         </div>
         <button className="desk-icon-btn" onClick={handleThemeToggle} title={activeIsDark ? "Switch to light mode" : "Switch to dark mode"}>
           {activeIsDark ? <Sun size={16} /> : <Moon size={16} />}
         </button>
         <button className="desk-icon-btn" onClick={() => setView("alerts")} title="Alerts">
           <Bell size={16} />
-          {(alertsCount || 0) > 0 && <span className="red-dot"></span>}
+          {(triggeredCount || 0) > 0 ? (
+            <span className="red-dot animate-ping" style={{ backgroundColor: "#ef4444" }}></span>
+          ) : (alertsCount || 0) > 0 ? (
+            <span className="red-dot"></span>
+          ) : null}
         </button>
-        <button className="desk-profile-btn" onClick={() => setView("settings")} title="User Account">
-          <User size={15} />
-        </button>
+        {user ? (
+          <button className="desk-profile-btn" onClick={() => setView("settings")} title={user.email}>
+            <User size={15} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenAuth}
+            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+          >
+            <User size={13} />
+            <span>Sign In</span>
+          </button>
+        )}
       </div>
     </header>
   );
@@ -1350,13 +1471,22 @@ function StockLab({
             </button>
 
             {setView && (
-              <button
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-200/70 dark:border-slate-700 transition-all"
-                onClick={() => setView("forecast")}
-              >
-                <Sparkles size={14} className="text-blue-600 dark:text-blue-400" />
-                <span>Forecast Studio</span>
-              </button>
+              <>
+                <button
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-200/70 dark:border-slate-700 transition-all cursor-pointer"
+                  onClick={() => setView("forecast")}
+                >
+                  <Sparkles size={14} className="text-blue-600 dark:text-blue-400" />
+                  <span>Forecast Studio</span>
+                </button>
+                <button
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-200/70 dark:border-slate-700 transition-all cursor-pointer"
+                  onClick={() => setView("backtest")}
+                >
+                  <History size={14} className="text-amber-500" />
+                  <span>Backtest Strategy</span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -2305,7 +2435,17 @@ function Screener({ setSymbol, setView }: { setSymbol: (s: string) => void; setV
   );
 }
 
-function Watchlist({ setSymbol, setView }: { setSymbol: (s: string) => void; setView: (v: View) => void }) {
+function Watchlist({
+  setSymbol,
+  setView,
+  currentUser,
+  onOpenAuth,
+}: {
+  setSymbol: (s: string) => void;
+  setView: (v: View) => void;
+  currentUser?: UserProfile | null;
+  onOpenAuth?: () => void;
+}) {
   const qc = useQueryClient();
   const [query, setQuery] = useState("");
   const [countdown, setCountdown] = useState(30);
@@ -2321,41 +2461,240 @@ function Watchlist({ setSymbol, setView }: { setSymbol: (s: string) => void; set
   });
   const rows = (watch.data || []).map((i: any) => ({ symbol: i.symbol, name: i.name, ...i.quote }));
 
+  const popularTickers = ["NVDA", "AAPL", "MSFT", "TSLA", "SPY", "AMZN", "META", "GOOGL"];
+
   useEffect(() => {
-    const timer = setInterval(() => setCountdown((c) => c > 0 ? c - 1 : 30), 1000);
+    const timer = setInterval(() => setCountdown((c) => (c > 0 ? c - 1 : 30)), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  return <div className="page-grid">
-    <GlassCard className="wide">
-      <SectionTitle icon={<Star />} title="Watchlist" />
-      <div className="searchbox compact" style={{ marginBottom: 14 }}>
-        <Search size={18} />
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search and add symbols (max 20)..." />
-        {search.data && query.length > 1 && (
-          <div className="suggestions">
-            {search.data.slice(0, 6).map((item) => (
-              <button key={item.symbol} disabled={rows.length >= 20} onClick={() => add.mutate(item.symbol)}>
-                <strong>{item.symbol}</strong><span>{item.name}</span><small>{item.exchange}</small>
-              </button>
-            ))}
+  return (
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      {/* Top Header Bento */}
+      <div className="glass-card flex flex-col md:flex-row md:items-center md:justify-between gap-5 p-6 border border-slate-200 dark:border-slate-800/80 rounded-2xl bg-white/70 dark:bg-[#111827]/70 backdrop-blur-xl shadow-sm">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-500 uppercase tracking-wider mb-1.5">
+            <span className="p-1 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-500">
+              <Star size={13} />
+            </span>
+            <span>Personal Watchlist Desk</span>
           </div>
-        )}
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            Monitored Universe &amp; Quick Actions
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
+            Live prices, one-click access to neural forecast models and quantitative backtesting.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-xs">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Auto-Refresh:</span>
+            <span className="font-mono font-black text-blue-600 dark:text-blue-400">{countdown}s</span>
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-xs">
+            <span className="text-slate-500 dark:text-slate-400 font-medium">Tracking:</span>
+            <span className="font-mono font-black text-amber-500">{rows.length} Tickers</span>
+          </div>
+        </div>
       </div>
-      <p className="watch-refresh">↻ Auto-refreshes in {countdown}s · {rows.length}/20 symbols</p>
-      {rows.length === 0
-        ? <div className="empty-state"><div><div style={{ fontSize: 40 }}>⭐</div><p>Search and add symbols to track them here with live prices.</p></div></div>
-        : <div className="watch-list">{rows.map((row: any) => (
-          <div className="watch-row" key={row.symbol}>
-            <button onClick={() => { setSymbol(row.symbol); setView("stock"); }}>
-              <b>{row.symbol}</b><span>{row.name || ""}</span><strong>${money(row.price)}</strong><PriceBadge value={row.change_pct} />
-              <span style={{ width: 80 }}></span>
-            </button>
-            <button className="icon-btn danger" onClick={() => remove.mutate(row.symbol)} title="Remove from watchlist"><Trash2 size={17} /></button>
+
+      {/* Guest Sync Banner */}
+      {!currentUser && (
+        <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold flex-shrink-0">
+              <User size={16} />
+            </div>
+            <div>
+              <strong className="text-xs text-slate-900 dark:text-white block">
+                Browsing with local guest session
+              </strong>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Sign in to back up your watchlist to your cloud profile and access it from any workstation.
+              </span>
+            </div>
           </div>
-        ))}</div>}
-    </GlassCard>
-  </div>;
+          <button
+            type="button"
+            onClick={onOpenAuth}
+            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer flex-shrink-0"
+          >
+            Sign In / Register
+          </button>
+        </div>
+      )}
+
+      {/* Search & Quick-Add Bar */}
+      <div className="glass-card p-4 border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-[#111827] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search stock ticker to add (e.g. MSFT, GOOGL)..."
+            className="w-full pl-9 pr-4 py-2 rounded-xl text-xs font-mono border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
+          />
+          {search.data && query.length > 1 && (
+            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 overflow-hidden">
+              {search.data.slice(0, 5).map((item) => (
+                <button
+                  key={item.symbol}
+                  onClick={() => add.mutate(item.symbol)}
+                  className="w-full p-2.5 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between border-b last:border-b-0 border-slate-100 dark:border-slate-800"
+                >
+                  <div className="flex items-center gap-2">
+                    <strong className="font-mono text-blue-600 dark:text-blue-400">{item.symbol}</strong>
+                    <span className="text-slate-600 dark:text-slate-300 truncate max-w-[200px]">{item.name}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">{item.exchange}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Quick Ticker Add Pills */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] text-slate-400 font-semibold mr-1">Popular:</span>
+          {popularTickers.map((t) => {
+            const alreadyIn = rows.some((r: any) => r.symbol === t);
+            return (
+              <button
+                key={t}
+                type="button"
+                disabled={alreadyIn || add.isPending}
+                onClick={() => add.mutate(t)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
+                  alreadyIn
+                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
+                    : "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-900/60 cursor-pointer"
+                }`}
+              >
+                {alreadyIn ? `✓ ${t}` : `+ ${t}`}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Watchlist Cards Grid / Empty State */}
+      {rows.length === 0 ? (
+        <div className="glass-card p-12 border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-[#111827] shadow-sm text-center flex flex-col items-center justify-center gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 flex items-center justify-center text-amber-500">
+            <Star size={24} />
+          </div>
+          <h4 className="text-base font-bold text-slate-900 dark:text-white m-0">Your Watchlist is Empty</h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm m-0">
+            Search for stocks above or click any popular ticker like NVDA or AAPL to start tracking live prices and forecasts.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {rows.map((row: any) => {
+            const isPos = (row.change_pct || 0) >= 0;
+            return (
+              <div
+                key={row.symbol}
+                className="glass-card p-5 border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-[#111827] shadow-sm hover:border-blue-400 dark:hover:border-blue-600/60 transition-all flex flex-col justify-between gap-4 group"
+              >
+                {/* Card Top */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900/60 text-blue-600 dark:text-blue-400 font-bold font-mono text-sm flex items-center justify-center flex-shrink-0">
+                      {row.symbol.slice(0, 3)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <strong className="text-base font-black text-slate-900 dark:text-white font-mono">
+                          {row.symbol}
+                        </strong>
+                      </div>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 truncate block">
+                        {row.name || "Asset"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-mono font-black text-base text-slate-900 dark:text-white">
+                      ${money(row.price)}
+                    </div>
+                    <span
+                      className={`text-xs font-mono font-bold flex items-center justify-end gap-0.5 ${
+                        isPos ? "text-emerald-500" : "text-rose-500"
+                      }`}
+                    >
+                      {isPos ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                      {isPos ? "+" : ""}{(row.change_pct || 0).toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Day Range */}
+                {(row.day_low != null || row.day_high != null) && (
+                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-2.5">
+                    <span>Day Low: ${money(row.day_low)}</span>
+                    <span>Day High: ${money(row.day_high)}</span>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSymbol(row.symbol);
+                        setView("forecast");
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Sparkles size={12} />
+                      <span>Forecast</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSymbol(row.symbol);
+                        setView("backtest");
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <History size={12} />
+                      <span>Backtest</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSymbol(row.symbol);
+                        setView("stock");
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <CandlestickChart size={12} />
+                      <span>Lab</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => remove.mutate(row.symbol)}
+                    title="Remove from Watchlist"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Elegant Web Audio Synthesizer Chime for Live Market Alerts
@@ -2394,7 +2733,15 @@ function playAlertChime() {
   }
 }
 
-function Alerts({ symbol: initialSymbol }: { symbol: string }) {
+function Alerts({
+  symbol: initialSymbol,
+  currentUser,
+  onOpenAuth,
+}: {
+  symbol: string;
+  currentUser?: UserProfile | null;
+  onOpenAuth?: () => void;
+}) {
   const qc = useQueryClient();
   const [targetSymbol, setTargetSymbol] = useState(initialSymbol || "NVDA");
   const [value, setValue] = useState<number | "">("");
@@ -2449,8 +2796,19 @@ function Alerts({ symbol: initialSymbol }: { symbol: string }) {
   });
   const alertsList = alertsQuery.data || [];
 
+  const triggeredQuery = useQuery({
+    queryKey: ["alerts-triggered"],
+    queryFn: getTriggeredAlerts,
+    refetchInterval: 15000,
+  });
+  const triggeredList = triggeredQuery.data || [];
+
   const add = useMutation({
     mutationFn: (customData?: { sym: string; typ: string; val: number } | void) => {
+      if (!currentUser && onOpenAuth) {
+        onOpenAuth();
+        throw new Error("Authentication required");
+      }
       const sym = (customData && customData.sym ? customData.sym : targetSymbol).toUpperCase().trim();
       const typ = customData && customData.typ ? customData.typ : type;
       const val = customData && customData.val !== undefined ? customData.val : (Number(value) || 0);
@@ -2469,6 +2827,7 @@ function Alerts({ symbol: initialSymbol }: { symbol: string }) {
     mutationFn: (id: number) => deleteAlert(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["alerts-triggered"] });
       showToast("Alert trigger removed.");
     },
   });
@@ -2646,6 +3005,50 @@ function Alerts({ symbol: initialSymbol }: { symbol: string }) {
           </button>
         </div>
       </div>
+
+      {/* ── Triggered Alerts Live Notification Banner ──────────── */}
+      {triggeredList.length > 0 && (
+        <div className="p-5 rounded-2xl border border-rose-500/40 bg-rose-500/10 backdrop-blur-xl shadow-lg flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+              <span>⚡ {triggeredList.length} Alert Trigger Condition{triggeredList.length > 1 ? "s" : ""} Met!</span>
+            </div>
+            <span className="text-[11px] font-mono text-rose-500">Live Threshold Notification</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {triggeredList.map((tr) => (
+              <div
+                key={tr.id}
+                className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/80 flex items-center justify-between gap-3 shadow-sm"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <strong className="text-sm font-mono font-black text-slate-900 dark:text-white">
+                      {tr.ticker || tr.symbol}
+                    </strong>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
+                      TRIGGERED
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400 mt-0.5 block">
+                    {(tr.condition_type || tr.alert_type)?.replaceAll("_", " ")}
+                    {tr.threshold_value ? ` @ $${tr.threshold_value.toFixed(2)}` : ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => remove.mutate(tr.id)}
+                  className="px-2.5 py-1.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 hover:bg-rose-200 text-rose-700 dark:text-rose-300 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Main Grid ────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">

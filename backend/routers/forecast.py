@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from models.database import get_db, SavedForecast, CacheEntry
+from models.schemas import ModelConfidenceResponse
 from services.data_service import get_history_df
 from services.forecasting_service import train_and_forecast, generate_technical_signal
 
@@ -330,3 +331,63 @@ def get_accuracy_tracker(db: Session = Depends(get_db)):
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch accuracy history: {str(exc)}")
+
+
+@router.get("/{symbol}/confidence", response_model=ModelConfidenceResponse)
+def get_forecast_confidence(symbol: str, model: Optional[str] = None):
+    """
+    Returns the model's honest out-of-sample skill score vs. naive persistence for the ticker.
+    skill_score = (1 - model_MAPE / naive_MAPE) * 100
+    Derived from the multi-fold walk-forward validation with Newey-West HAC Diebold-Mariano tests
+    and Benjamini-Hochberg FDR correction.
+    """
+    import json
+    from pathlib import Path
+
+    sym = symbol.upper().strip()
+    data_path = Path(__file__).resolve().parent.parent / "data" / "walk_forward_results.json"
+
+    benchmark_data = {}
+    if data_path.exists():
+        try:
+            with open(data_path, "r", encoding="utf-8") as f:
+                benchmark_data = json.load(f)
+        except Exception as e:
+            print(f"[Forecast Confidence] Error reading benchmark data: {e}")
+
+    if sym in benchmark_data:
+        ticker_models = benchmark_data[sym]
+        chosen_model = model if model and model in ticker_models else ("GradientBoosting" if "GradientBoosting" in ticker_models else list(ticker_models.keys())[0])
+        entry = ticker_models[chosen_model]
+        return ModelConfidenceResponse(
+            symbol=sym,
+            model=chosen_model,
+            model_mape=entry.get("model_mape"),
+            naive_mape=entry.get("naive_mape"),
+            skill_score=entry.get("skill_score"),
+            label=entry.get("label", "No validated edge"),
+            is_statistically_significant=entry.get("fdr_significant", False),
+            is_benchmarked=True,
+            explanation=entry.get("explanation", "This forecast has not shown a statistically validated advantage over simply assuming tomorrow's price equals today's price."),
+            model_r2=entry.get("model_r2"),
+            naive_r2=entry.get("naive_r2"),
+            dm_statistic=entry.get("dm_statistic"),
+            p_value=entry.get("p_value"),
+        )
+    else:
+        # Symbol is outside the 36-ticker benchmarked universe
+        return ModelConfidenceResponse(
+            symbol=sym,
+            model=model or "GradientBoosting",
+            model_mape=None,
+            naive_mape=None,
+            skill_score=None,
+            label="Not yet validated for this ticker",
+            is_statistically_significant=False,
+            is_benchmarked=False,
+            explanation="This ticker has not yet undergone the 2-year expanding-window walk-forward validation with multiple-testing correction. Rigorous out-of-sample benchmark results are currently available for the 36 core liquid equities.",
+            model_r2=None,
+            naive_r2=None,
+            dm_statistic=None,
+            p_value=None,
+        )

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Literal
 
@@ -200,3 +198,119 @@ class BacktestResponse(BaseModel):
     win_rate_pct: float
     total_trades: int
     trades: list[BacktestTrade]
+
+
+# Common weak passwords list for validation
+COMMON_PASSWORDS = {
+    "password", "12345678", "123456789", "1234567890", "qwerty123", "password123",
+    "admin123", "welcome1", "iloveyou", "letmein1", "abc12345", "monkey123",
+    "dragon123", "baseball", "football", "trustno1", "master123", "sunshine1"
+}
+
+
+class UserRegister(BaseModel):
+    email: str
+    password: str
+
+    def validate_credentials(self) -> None:
+        email_clean = self.email.strip().lower()
+        if "@" not in email_clean or "." not in email_clean.split("@")[-1]:
+            raise ValueError("Invalid email format.")
+        if len(self.password) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+        if not any(c.isalpha() for c in self.password):
+            raise ValueError("Password must contain at least one letter.")
+        if not any(c.isdigit() for c in self.password):
+            raise ValueError("Password must contain at least one number.")
+        if self.password.lower() in COMMON_PASSWORDS:
+            raise ValueError("This password is too common. Please choose a stronger password.")
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    role: str = "user"
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+    expires_in: int = 1800
+
+
+class WatchlistAddRequest(BaseModel):
+    ticker: str
+
+
+class WatchlistResponseItem(BaseModel):
+    id: int
+    user_id: str
+    ticker: str
+    name: str | None = None
+    added_at: datetime
+    quote: dict[str, Any] | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class SavedBacktestCreate(BaseModel):
+    ticker: str
+    strategy_type: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    last_run_result: dict[str, Any] | None = None
+
+
+class SavedBacktestResponse(BaseModel):
+    id: int
+    user_id: str
+    ticker: str
+    strategy_type: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    last_run_result: dict[str, Any] | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AlertCreateScoped(BaseModel):
+    ticker: str
+    condition_type: Literal["price_above", "price_below", "rsi_above", "rsi_below", "sma_crossover"]
+    threshold_value: float = 0.0
+
+
+class AlertScopedResponse(BaseModel):
+    id: int
+    user_id: str
+    ticker: str
+    condition_type: str
+    threshold_value: float
+    is_triggered: bool
+    created_at: datetime
+    triggered_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ModelConfidenceResponse(BaseModel):
+    symbol: str
+    model: str
+    model_mape: float | None = None
+    naive_mape: float | None = None
+    skill_score: float | None = None
+    label: str
+    is_statistically_significant: bool = False
+    is_benchmarked: bool = True
+    explanation: str
+    model_r2: float | None = None
+    naive_r2: float | None = None
+    dm_statistic: float | None = None
+    p_value: float | None = None

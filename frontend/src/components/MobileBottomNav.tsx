@@ -13,7 +13,8 @@ export type View =
   | "screener"
   | "watchlist"
   | "calendar"
-  | "accuracy";
+  | "accuracy"
+  | "backtest";
 
 interface MobileBottomNavProps {
   currentView: View;
