@@ -1,10 +1,9 @@
 import React from "react";
-import { Gauge, Brain, Activity, Flame, Newspaper, Bell } from "lucide-react";
+import { Gauge, Brain, Flame, Newspaper, Bell, CandlestickChart } from "lucide-react";
 
 export type View =
   | "dashboard"
   | "forecast"
-  | "signals"
   | "opportunities"
   | "sentiment"
   | "alerts"
@@ -24,8 +23,8 @@ interface MobileBottomNavProps {
 export default function MobileBottomNav({ currentView, setView }: MobileBottomNavProps) {
   const tabs: { id: View; label: string; icon: React.ReactNode }[] = [
     { id: "dashboard", label: "Dashboard", icon: <Gauge size={20} /> },
+    { id: "stock", label: "Stock Lab", icon: <CandlestickChart size={20} /> },
     { id: "forecast", label: "Forecast", icon: <Brain size={20} /> },
-    { id: "signals", label: "Signals", icon: <Activity size={20} /> },
     { id: "opportunities", label: "Opportunities", icon: <Flame size={20} /> },
     { id: "sentiment", label: "Sentiment", icon: <Newspaper size={20} /> },
     { id: "alerts", label: "Alerts", icon: <Bell size={20} /> },

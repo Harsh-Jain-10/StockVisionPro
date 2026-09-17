@@ -24,6 +24,12 @@ export type Quote = {
   change?: number | null;
   volume?: number | null;
   currency?: string | null;
+  open?: number | null;
+  day_high?: number | null;
+  day_low?: number | null;
+  previous_close?: number | null;
+  market_cap?: number | null;
+  exchange?: string | null;
 };
 
 export type HistoryRow = {
@@ -129,6 +135,10 @@ export async function addAlert(symbol: string, type: string, value: number) {
   return (await api.post("/alerts/add", { user_id: userId, symbol, type, value })).data;
 }
 
+export async function deleteAlert(alertId: number) {
+  return (await api.delete(`/alerts/${alertId}`)).data;
+}
+
 export async function runBacktest(symbol: string, strategy: string, params: Record<string, any>) {
   return (await api.post("/backtest/run", { symbol, strategy, params, period: "2y" })).data;
 }
@@ -152,4 +162,49 @@ export async function getForecastOpportunities() {
 export async function getForecastAccuracy() {
   return (await api.get("/forecast/accuracy")).data;
 }
+
+export type MarketNewsArticle = {
+  title: string;
+  source: string;
+  url: string;
+  published_at: string;
+  sentiment: "positive" | "negative" | "neutral";
+  score: number;
+  category: string;
+  impacted_symbols: string[];
+  impact_type: "profit" | "loss" | "neutral";
+  impact_desc: string;
+  origin_symbol: string;
+};
+
+export type ImpactedAsset = {
+  symbol: string;
+  name: string;
+  expected_direction: "BULLISH" | "BEARISH";
+  estimated_impact: string;
+  catalysts: string;
+  sector: string;
+  price?: number;
+};
+
+export type MarketNewsSentimentResponse = {
+  total_articles: number;
+  overall_distribution: {
+    positive: number;
+    neutral: number;
+    negative: number;
+    avg_compound: number;
+  };
+  articles: MarketNewsArticle[];
+  beneficiaries: ImpactedAsset[];
+  at_risk: ImpactedAsset[];
+  sector_breakdown: Record<string, { positive: number; neutral: number; negative: number; count: number }>;
+  macro_synthesis: string;
+  last_refreshed: string;
+};
+
+export async function getMarketNewsSentiment(): Promise<MarketNewsSentimentResponse> {
+  return (await api.get("/market/news-sentiment")).data;
+}
+
 

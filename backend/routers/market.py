@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from models.database import get_db
-from services.analysis_service import market_overview, screener
+from services.analysis_service import get_market_news_sentiment, market_overview, screener
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
@@ -22,3 +22,9 @@ def sectors(db: Session = Depends(get_db)) -> list[dict]:
 @router.get("/screener")
 def run_screener(q: str = Query("", description="Optional symbol/name query"), db: Session = Depends(get_db)) -> dict:
     return screener({"q": q}, db)
+
+
+@router.get("/news-sentiment")
+def market_news_sentiment(db: Session = Depends(get_db)) -> dict:
+    return get_market_news_sentiment(db)
+
