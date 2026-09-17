@@ -11,6 +11,12 @@ import {
   Info,
   RefreshCw,
   Hourglass,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+  Calendar,
 } from "lucide-react";
 import {
   ComposedChart,
@@ -171,11 +177,47 @@ export default function ForecastAccuracy() {
 
   const data = accuracyQuery.data;
 
-  const chartData = React.useMemo(() => {
+  const [pageSize, setPageSize] = React.useState<number>(15);
+  const [currentPage, setCurrentPage] = React.useState<number>(1);
+  const [filterSymbol, setFilterSymbol] = React.useState<string>("");
+
+  // Sort by target date descending: latest date first (closer to today appears first)
+  const sortedHistory = React.useMemo(() => {
     if (!data?.history?.length) return [];
-    return [...data.history]
+    return [...data.history].sort((a: any, b: any) => {
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      if (dateB !== dateA) return dateB - dateA; // Latest date first
+      return (b.id || 0) - (a.id || 0);
+    });
+  }, [data]);
+
+  // Filter by symbol if specified
+  const filteredHistory = React.useMemo(() => {
+    if (!filterSymbol.trim()) return sortedHistory;
+    const q = filterSymbol.trim().toUpperCase();
+    return sortedHistory.filter((h: any) => h.symbol?.toUpperCase().includes(q));
+  }, [sortedHistory, filterSymbol]);
+
+  const totalItems = filteredHistory.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  // Reset to page 1 if search or page size shifts bounds
+  React.useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage, filterSymbol, pageSize]);
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const pagedHistory = filteredHistory.slice(startIndex, endIndex);
+
+  const chartData = React.useMemo(() => {
+    if (!sortedHistory.length) return [];
+    return [...sortedHistory]
+      .slice(0, 20)
       .reverse()
-      .slice(-20)
       .map((h: any) => ({
         date: h.date?.slice(5) ?? h.date, // show MM-DD only
         predicted: h.predicted,
@@ -183,7 +225,7 @@ export default function ForecastAccuracy() {
         symbol: h.symbol,
         accuracy: h.accuracy,
       }));
-  }, [data]);
+  }, [sortedHistory]);
 
   const hasEvaluated = data && data.total_evaluated > 0;
   const hasPending   = data && data.pending_count > 0;
@@ -421,11 +463,60 @@ export default function ForecastAccuracy() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.18 }}
+              style={{ overflow: "hidden", padding: 0 }}
             >
-              <div className="acc-section-head">
-                <History size={17} style={{ color: "var(--primary)" }} />
-                <h3>Accuracy Log Ledger</h3>
-                <span className="acc-section-sub">Last 100 evaluated forecasts</span>
+              <div
+                className="acc-section-head"
+                style={{
+                  padding: "16px 20px",
+                  marginBottom: 0,
+                  borderBottom: "1px solid var(--border)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                  <History size={17} style={{ color: "var(--primary)" }} />
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>Accuracy Log Ledger</h3>
+                  <span className="acc-section-sub">
+                    Latest First • {totalItems} Evaluated
+                  </span>
+                </div>
+
+                {/* Filter and Page Size Controls */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <Search size={13} style={{ position: "absolute", left: "9px", color: "var(--text-muted)", pointerEvents: "none" }} />
+                    <input
+                      className="acc-search-input"
+                      placeholder="Filter ticker (e.g. NVDA)..."
+                      value={filterSymbol}
+                      onChange={(e) => {
+                        setFilterSymbol(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                    />
+                  </div>
+
+                  <div className="acc-pagesize-switcher">
+                    <span style={{ fontSize: "10px", color: "var(--text-muted)", padding: "0 4px", fontWeight: 600 }}>Show:</span>
+                    <button
+                      className={`acc-pagesize-btn ${pageSize === 15 ? "active" : ""}`}
+                      onClick={() => { setPageSize(15); setCurrentPage(1); }}
+                    >
+                      15
+                    </button>
+                    <button
+                      className={`acc-pagesize-btn ${pageSize === 20 ? "active" : ""}`}
+                      onClick={() => { setPageSize(20); setCurrentPage(1); }}
+                    >
+                      20
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div style={{ overflowX: "auto" }}>
@@ -442,46 +533,162 @@ export default function ForecastAccuracy() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.history.map((h: any) => {
-                      const delta = h.actual - h.predicted;
-                      const deltaColor = delta >= 0 ? "#00c9a7" : "#ff6b8a";
-                      return (
-                        <tr key={h.id}>
-                          <td>
-                            <strong style={{ fontFamily: "DM Mono, monospace" }}>{h.symbol}</strong>
-                          </td>
-                          <td style={{ color: "var(--text-muted)", fontSize: "12px" }}>{h.model}</td>
-                          <td style={{ color: "var(--text-secondary)" }}>{h.date}</td>
-                          <td style={{ textAlign: "right", fontFamily: "DM Mono, monospace" }}>
-                            ${h.predicted.toFixed(2)}
-                          </td>
-                          <td style={{ textAlign: "right", fontFamily: "DM Mono, monospace" }}>
-                            ${h.actual.toFixed(2)}
-                          </td>
-                          <td style={{ textAlign: "right", fontFamily: "DM Mono, monospace", color: deltaColor }}>
-                            {delta >= 0 ? "+" : ""}{delta.toFixed(2)}
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <span
-                              className="acc-badge"
-                              style={{
-                                background: h.accuracy >= 90
-                                  ? "rgba(0,201,167,.12)"
-                                  : h.accuracy >= 75
-                                  ? "rgba(255,179,71,.12)"
-                                  : "rgba(255,107,138,.12)",
-                                color: AccuracyColor(h.accuracy),
-                              }}
-                            >
-                              {h.accuracy.toFixed(1)}%
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {pagedHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: "center", padding: "32px 14px", color: "var(--text-muted)" }}>
+                          No evaluations found matching "{filterSymbol}".
+                        </td>
+                      </tr>
+                    ) : (
+                      pagedHistory.map((h: any) => {
+                        const delta = h.actual - h.predicted;
+                        const deltaColor = delta >= 0 ? "#00c9a7" : "#ff6b8a";
+                        return (
+                          <tr key={h.id}>
+                            <td>
+                              <strong style={{ fontFamily: "DM Mono, monospace", color: "var(--primary)" }}>{h.symbol}</strong>
+                            </td>
+                            <td style={{ color: "var(--text-muted)", fontSize: "12px" }}>{h.model}</td>
+                            <td style={{ color: "var(--text-secondary)" }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                <Calendar size={13} style={{ color: "var(--text-muted)" }} />
+                                {h.date}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: "right", fontFamily: "DM Mono, monospace" }}>
+                              ${h.predicted.toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: "right", fontFamily: "DM Mono, monospace" }}>
+                              ${h.actual.toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: "right", fontFamily: "DM Mono, monospace", color: deltaColor }}>
+                              {delta >= 0 ? "+" : ""}{delta.toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <span
+                                className="acc-badge"
+                                style={{
+                                  background: h.accuracy >= 90
+                                    ? "rgba(0,201,167,.12)"
+                                    : h.accuracy >= 75
+                                    ? "rgba(255,179,71,.12)"
+                                    : "rgba(255,107,138,.12)",
+                                  color: AccuracyColor(h.accuracy),
+                                }}
+                              >
+                                {h.accuracy.toFixed(1)}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
+
+              {/* ── Pagination Bottom Bar ──────────────── */}
+              {totalItems > 0 && (
+                <div className="acc-pagination-bar">
+                  <div className="acc-pagination-info">
+                    <span>
+                      Showing <b>{startIndex + 1}–{endIndex}</b> of <b>{totalItems}</b> records
+                    </span>
+                    <span style={{ color: "var(--text-muted)" }}>•</span>
+                    <span>Page <b>{currentPage}</b> of <b>{totalPages}</b></span>
+                  </div>
+
+                  {/* Centered Pagination Controls */}
+                  <div className="acc-pagination-center">
+                    <div className="acc-pagination-actions">
+                      <button
+                        className="acc-page-btn"
+                        title="First Page"
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronsLeft size={15} />
+                      </button>
+                      <button
+                        className="acc-page-btn"
+                        title="Previous Page"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft size={15} />
+                      </button>
+
+                      {/* Page Numbers */}
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .reduce((acc: (number | string)[], p, idx, arr) => {
+                          if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                            acc.push("…");
+                          }
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((p, idx) =>
+                          typeof p === "number" ? (
+                            <button
+                              key={p}
+                              className={`acc-page-btn ${currentPage === p ? "active" : ""}`}
+                              onClick={() => setCurrentPage(p)}
+                            >
+                              {p}
+                            </button>
+                          ) : (
+                            <span key={`dots-${idx}`} style={{ padding: "0 4px", color: "var(--text-muted)", fontSize: "12px" }}>
+                              …
+                            </span>
+                          )
+                        )}
+
+                      <button
+                        className="acc-page-btn"
+                        title="Next Page"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                      >
+                        <ChevronRight size={15} />
+                      </button>
+                      <button
+                        className="acc-page-btn"
+                        title="Last Page"
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                      >
+                        <ChevronsRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right side with safe margin away from floating AI Chatbot */}
+                  <div className="acc-pagination-right">
+                    <div className="acc-pagesize-switcher">
+                      <span style={{ fontSize: "10px", color: "var(--text-muted)", padding: "0 4px", fontWeight: 600 }}>Show:</span>
+                      <button
+                        className={`acc-pagesize-btn ${pageSize === 15 ? "active" : ""}`}
+                        onClick={() => { setPageSize(15); setCurrentPage(1); }}
+                      >
+                        15
+                      </button>
+                      <button
+                        className={`acc-pagesize-btn ${pageSize === 20 ? "active" : ""}`}
+                        onClick={() => { setPageSize(20); setCurrentPage(1); }}
+                      >
+                        20
+                      </button>
+                      <button
+                        className={`acc-pagesize-btn ${pageSize === 50 ? "active" : ""}`}
+                        onClick={() => { setPageSize(50); setCurrentPage(1); }}
+                      >
+                        50
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </>

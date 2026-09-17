@@ -4,7 +4,6 @@ import { Search, Sun, Moon, Settings, LogOut } from "lucide-react";
 export type View =
   | "dashboard"
   | "forecast"
-  | "signals"
   | "opportunities"
   | "sentiment"
   | "alerts"
@@ -30,7 +29,6 @@ interface MobileHeaderProps {
 const viewTitles: Record<string, string> = {
   dashboard: "Dashboard",
   forecast: "Forecast Studio",
-  signals: "Technical Signals",
   opportunities: "Opportunities",
   sentiment: "News Sentiment",
   alerts: "Alerts Desk",
